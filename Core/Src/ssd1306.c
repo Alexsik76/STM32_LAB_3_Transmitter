@@ -12,7 +12,7 @@ static uint8_t SSD1306_DMATransmitBuffer[sizeof(SSD1306_Buffer) + 1];
 static HAL_StatusTypeDef ssd1306_WriteCommand(uint8_t cmd)
 {
     // Використовуємо короткий таймаут, а не HAL_MAX_DELAY
-    return HAL_I2C_Mem_Write(&g_hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, 100);
+    return HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, 100);
 }
 
 // Ініціалізація
@@ -97,38 +97,39 @@ void ssd1306_SetCursor(uint8_t x, uint8_t y)
 }
 
 // Вивід символу у буфер
-static char ssd1306_WriteChar(char ch, FontDef_t* Font, uint8_t color)
+// Вивід символу у буфер (оновлено для 8-бітного шрифту)
+// Вивід символу у буфер (16-бітний шрифт)
+static char ssd1306_WriteChar(char ch, FontDef_8bit_t* Font, uint8_t color)
 {
-    uint32_t i, b, j;
+    uint32_t i, j;
 
-    // Перевірка чи символ не виходить за рамки
     if (SSD1306_WIDTH <= (current_x + Font->FontWidth) ||
         SSD1306_HEIGHT <= (current_y + Font->FontHeight))
     {
-        return 0; // Виходимо
+        return 0;
     }
 
-    for (i = 0; i < Font->FontHeight; i++) {
-        b = Font->data[(ch - 32) * Font->FontHeight + i];
-        for (j = 0; j < Font->FontWidth; j++) {
-            if ((b << j) & 0x8000) {
-                ssd1306_DrawPixel(current_x + j, (current_y + i), (uint8_t) color);
+    for (i = 0; i < Font->FontWidth; i++) {
+        uint8_t b = Font->data[(ch - 32) * Font->FontWidth + i];
+        for (j = 0; j < Font->FontHeight; j++) {
+            if ((b >> j) & 0x01) {
+                ssd1306_DrawPixel(current_x + i, current_y + j, (uint8_t)color);
             } else {
-                ssd1306_DrawPixel(current_x + j, (current_y + i), (uint8_t)!color);
+                ssd1306_DrawPixel(current_x + i, current_y + j, (uint8_t)!color);
             }
         }
     }
 
-    current_x += Font->FontWidth; // Зсуваємо курсор
+    current_x += Font->FontWidth;
     return ch;
 }
 
-// Вивід рядка у буфер
-char ssd1306_WriteString(const char* str, FontDef_t* Font, uint8_t color)
+// Вивід рядка у буфер (оновлено для 8-бітного шрифту)
+char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color)
 {
     while (*str) {
         if (ssd1306_WriteChar(*str, Font, color) != *str) {
-            return *str; // Помилка
+            return *str;
         }
         str++;
     }
@@ -147,7 +148,7 @@ void ssd1306_UpdateScreen(void)
     ssd1306_WriteCommand(SSD1306_HEIGHT/8 - 1); // End (4 сторінки для 32px)
 
     // Відправляємо буфер (блокуючим методом)
-    HAL_I2C_Mem_Write(&g_hi2c1, (SSD1306_I2C_ADDR << 1), 0x40, 1,
+    HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x40, 1,
                       SSD1306_Buffer, sizeof(SSD1306_Buffer), 1000);
 }
 
@@ -155,28 +156,29 @@ void ssd1306_UpdateScreen(void)
 // Неблокуюча функція оновлення через DMA
 void ssd1306_UpdateScreenDMA(SemaphoreHandle_t sem)
 {
-    // 1. Копіюємо дані з робочого буфера у DMA-буфер
-    // (починаючи з індексу 1, бо [0] - це Control Byte 0x40)
-    memcpy(&SSD1306_DMATransmitBuffer[1], SSD1306_Buffer, sizeof(SSD1306_Buffer));
+    // 1. Встановлюємо адресацію
+    ssd1306_WriteCommand(0x21); // Set column address
+    ssd1306_WriteCommand(0);    // Start
+    ssd1306_WriteCommand(SSD1306_WIDTH - 1); // End
 
-    // 2. Встановлюємо адресацію
-    // (Ми можемо пропустити це, якщо буфер завжди оновлюється повністю)
-    // ssd1306_WriteCommand(0x21); ...
+    ssd1306_WriteCommand(0x22); // Set page address
+    ssd1306_WriteCommand(0);    // Start
+    ssd1306_WriteCommand(SSD1306_HEIGHT/8 - 1); // End
 
-    // 3. Запускаємо DMA передачу
-    // Ми передаємо ВЕСЬ DMA-буфер (1 байт команди + 512 байт даних)
-    HAL_StatusTypeDef status = HAL_I2C_Master_Transmit_DMA(&g_hi2c1, (SSD1306_I2C_ADDR << 1),
-                                        SSD1306_DMATransmitBuffer,
-                                        sizeof(SSD1306_DMATransmitBuffer));
+    // 2. Запускаємо ПРАВИЛЬНУ DMA передачу
+    // Ми передаємо наш головний буфер SSD1306_Buffer,
+    // а HAL сам надсилає команду 0x40 (D/C# = 1)
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
+                                    0x40, // "Адреса пам'яті" = "це дані"
+                                    I2C_MEMADD_SIZE_8BIT,
+                                    SSD1306_Buffer, // Наш буфер
+                                    sizeof(SSD1306_Buffer));
 
     if (status != HAL_OK)
     {
-        // Якщо DMA не зміг стартувати (напр. шина зайнята),
-        // ми маємо "віддати" семафор, щоб задача не "зависла"
+        // Якщо DMA не зміг стартувати, віддаємо семафор
         xSemaphoreGive(sem);
     }
-    // Якщо HAL_OK, то переривання HAL_I2C_MasterTxCpltCallback
-    // має "віддати" семафор, коли все завершиться
 }
 
 

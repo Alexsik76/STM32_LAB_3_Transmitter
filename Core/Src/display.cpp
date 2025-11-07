@@ -53,13 +53,14 @@ void display_init(void)
     // 1. Створюємо семафор
     g_i2c_tx_done_sem = xSemaphoreCreateBinary();
     // 2. Створюємо C++ об'єкт
-    g_display = new MyDisplay(&g_hi2c1);
+    g_display = new MyDisplay(&hi2c1);
 }
 
 // Це тіло нашої RTOS-задачі
+// Це тіло нашої RTOS-задачі
 void display_task(void* argument)
 {
-    // Ініціалізуємо дисплей
+    // Ініціалізуємо дисплей (використовуємо версію без "пінгу")
     if (!g_display->init())
     {
         // Якщо дисплей не знайдено, задача просто вбиває себе
@@ -72,7 +73,7 @@ void display_task(void* argument)
         // --- Тут буде логіка малювання ---
         ssd1306_Fill(Black);
         ssd1306_SetCursor(0, 0);
-        ssd1306_WriteString("Hello RTOS!", &Font_7x10, White);
+        ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
 
         // --- Логіка оновлення ---
         g_display->update_screen_DMA(); // Запускаємо DMA

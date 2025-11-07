@@ -161,10 +161,10 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 // Ця функція буде викликана HAL, коли I2C DMA передача завершена
-void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
   // Перевіряємо, що це наш I2C1
-  if (hi2c->Instance == I2C1)
+  if (hi2c->Instance == hi2c1.Instance)
   {
     // Знаходимо семафор, який ми створили в display.cpp
     extern SemaphoreHandle_t g_i2c_tx_done_sem;

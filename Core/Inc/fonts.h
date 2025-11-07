@@ -3,15 +3,12 @@
 
 #include <stdint.h>
 
-// Структура опису шрифту
 typedef struct {
-    const uint8_t FontWidth;    // Ширина символу
-    uint8_t FontHeight;   // Висота символу
-    const uint16_t *data; // Вказівник на дані
-} FontDef_t;
+    const uint8_t FontWidth;
+    uint8_t FontHeight;
+    const uint8_t *data;
+} FontDef_8bit_t;
 
-// Декларуємо шрифти, які додамо у .c файл
-extern FontDef_t Font_7x10;
-extern FontDef_t Font_11x18;
+extern FontDef_8bit_t Font_6x8;
 
 #endif // __FONTS_H__

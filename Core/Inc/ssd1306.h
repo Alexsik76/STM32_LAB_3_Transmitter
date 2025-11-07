@@ -28,7 +28,7 @@ uint8_t ssd1306_Init(void);
 void ssd1306_Fill(uint8_t color);
 void ssd1306_DrawPixel(uint8_t x, uint8_t y, uint8_t color);
 void ssd1306_SetCursor(uint8_t x, uint8_t y);
-char ssd1306_WriteString(const char* str, FontDef_t* Font, uint8_t color);
+char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color);
 
 // Функції оновлення екрану
 void ssd1306_UpdateScreen(void); // Стара, блокуюча
