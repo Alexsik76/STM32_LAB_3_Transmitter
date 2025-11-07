@@ -26,7 +26,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "display.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -95,7 +97,7 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-
+  display_init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -158,7 +160,24 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Ця функція буде викликана HAL, коли I2C DMA передача завершена
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+  // Перевіряємо, що це наш I2C1
+  if (hi2c->Instance == I2C1)
+  {
+    // Знаходимо семафор, який ми створили в display.cpp
+    extern SemaphoreHandle_t g_i2c_tx_done_sem;
 
+    // "Віддаємо" семафор з переривання
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
+
+    // Якщо "віддача" семафора розбудила задачу з вищим пріоритетом,
+    // негайно перемикаємо контекст
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+}
 /* USER CODE END 4 */
 
 /**

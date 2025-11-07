@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "display.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,7 +71,13 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-
+	// Створюємо нашу задачу дисплея
+	  xTaskCreate(display_task,        // Функція задачі
+	              "DisplayTask",       // Ім'я
+	              256,                 // Розмір стеку (256 * 4 = 1024 байти)
+	              NULL,                // Аргумент
+	              osPriorityNormal,    // Пріоритет
+	              NULL);               // Хендл (не потрібен)
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
