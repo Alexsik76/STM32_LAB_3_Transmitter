@@ -10,6 +10,8 @@
 #include "task.h"         // Для vTaskDelay
 #include "semphr.h"       // Для семафорів
 #include "i2c.h"
+#include "keypad.h"
+#include <stdio.h>
 
 // --- Глобальні C++ об'єкти ---
 static MyDisplay* g_display; // Глобальний вказівник на наш C++ об'єкт
@@ -58,34 +60,49 @@ void display_init(void)
 
 // Це тіло нашої RTOS-задачі
 // Це тіло нашої RTOS-задачі
+// Це тіло нашої RTOS-задачі
+// Це тіло нашої RTOS-задачі
+// Це тіло нашої RTOS-задачі
 void display_task(void* argument)
 {
-    // Ініціалізуємо дисплей (використовуємо версію без "пінгу")
-    if (!g_display->init())
-    {
-        // Якщо дисплей не знайдено, задача просто вбиває себе
-        vTaskDelete(NULL);
-    }
+    // 1. Гасимо діод
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
-    // Якщо все добре, починаємо нескінченний цикл оновлення
+    if (!g_display->init()) { vTaskDelete(NULL); }
+
+    char current_key = 0; // Локальна змінна для відображення
+
     while (1)
     {
-        // --- Тут буде логіка малювання ---
+        char key = keypad_get_key(); // Читаємо нову клавішу
+
+        if (key != 0) {
+            if (key == '*') {
+                current_key = 0; // "*" - це "Стерти"
+            } else {
+                current_key = key; // Запам'ятовуємо останню клавішу
+            }
+        }
+
         ssd1306_Fill(Black);
         ssd1306_SetCursor(0, 0);
-        ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
 
-        // --- Логіка оновлення ---
-        g_display->update_screen_DMA(); // Запускаємо DMA
+        if (current_key != 0) {
+            char str[10];
+            snprintf(str, 10, "Key: %c", current_key);
+            ssd1306_WriteString(str, &Font_6x8, White);
+        } else {
+            ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
+        }
 
-        // Чекаємо на семафор (який "віддасть" переривання DMA)
-        // з таймаутом 100 мс
+        g_display->update_screen_DMA();
         xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100));
-
-        // Чекаємо 200 мс перед наступним кадром
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
+
+
+
 }
 
 

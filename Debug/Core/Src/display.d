@@ -39,7 +39,7 @@ Core/Src/display.o: ../Core/Src/display.cpp ../Core/Inc/display.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
  ../Core/Inc/i2c.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Core/Inc/i2c.h
+ ../Core/Inc/i2c.h ../Core/Inc/keypad.h
 ../Core/Inc/display.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
@@ -84,3 +84,4 @@ Core/Src/display.o: ../Core/Src/display.cpp ../Core/Inc/display.h \
 ../Core/Inc/i2c.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../Core/Inc/i2c.h:
+../Core/Inc/keypad.h:

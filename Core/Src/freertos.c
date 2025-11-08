@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "display.h"
+#include "keypad.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,6 +76,12 @@ void MX_FREERTOS_Init(void) {
 	  xTaskCreate(display_task,        // Функція задачі
 	              "DisplayTask",       // Ім'я
 	              256,                 // Розмір стеку (256 * 4 = 1024 байти)
+	              NULL,                // Аргумент
+	              osPriorityNormal,    // Пріоритет
+	              NULL);               // Хендл (не потрібен)
+	  xTaskCreate(keypad_task,         // Функція задачі
+	              "KeypadTask",        // Ім'я
+	              128,                 // Розмір стеку (128 * 4 = 512 байт)
 	              NULL,                // Аргумент
 	              osPriorityNormal,    // Пріоритет
 	              NULL);               // Хендл (не потрібен)
