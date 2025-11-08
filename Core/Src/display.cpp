@@ -65,24 +65,22 @@ void display_init(void)
 // Це тіло нашої RTOS-задачі
 void display_task(void* argument)
 {
-    // 1. Гасимо діод
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+    // ... ініціалізація ...
 
-    if (!g_display->init()) { vTaskDelete(NULL); }
-
-    char current_key = 0; // Локальна змінна для відображення
-
+    char current_key = 0; // Локальна змінна для відображення, що зберігає стан
     while (1)
     {
-        char key = keypad_get_key(); // Читаємо нову клавішу
+        char key = keypad_get_key(); // key буде != 0 лише в момент, коли було натиснуто
 
-        if (key != 0) {
+        // --- ЛОГІКА ЗБЕРЕЖЕННЯ СТАНУ ---
+        if (key != 0) { // Якщо ми отримали подію
             if (key == '*') {
-                current_key = 0; // "*" - це "Стерти"
+                current_key = 0; // СКИНУТИ стан
             } else {
-                current_key = key; // Запам'ятовуємо останню клавішу
+                current_key = key; // ЗБЕРЕГТИ останнє натискання
             }
         }
+        // --- КІНЕЦЬ ЛОГІКИ ЗБЕРЕЖЕННЯ СТАНУ ---
 
         ssd1306_Fill(Black);
         ssd1306_SetCursor(0, 0);
@@ -92,7 +90,20 @@ void display_task(void* argument)
             snprintf(str, 10, "Key: %c", current_key);
             ssd1306_WriteString(str, &Font_6x8, White);
         } else {
+            // Виводимо "Hello RTOS!" тільки коли current_key = 0
+
             ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
+            char str[10];
+            if (current_key >= 32 && current_key <= 126) {
+                snprintf(str, 20, "Key: %c", current_key);
+            } else {
+                // Якщо це 0 (або інший недрукований символ), виводимо його код
+                snprintf(str, 20, "Code: %d", current_key);
+            }
+            ssd1306_SetCursor(0, 10);
+            ssd1306_WriteString(str, &Font_6x8, White);
+
+
         }
 
         g_display->update_screen_DMA();
@@ -101,8 +112,7 @@ void display_task(void* argument)
     }
 }
 
-
-
 }
+
 
 

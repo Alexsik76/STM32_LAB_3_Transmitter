@@ -168,6 +168,8 @@ void ssd1306_UpdateScreenDMA(SemaphoreHandle_t sem)
     // 2. Запускаємо ПРАВИЛЬНУ DMA передачу
     // Ми передаємо наш головний буфер SSD1306_Buffer,
     // а HAL сам надсилає команду 0x40 (D/C# = 1)
+    HAL_I2C_DeInit(&hi2c1);
+    MX_I2C1_Init();
     HAL_StatusTypeDef status = HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
                                     0x40, // "Адреса пам'яті" = "це дані"
                                     I2C_MEMADD_SIZE_8BIT,

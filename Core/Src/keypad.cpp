@@ -1,6 +1,7 @@
 #include "keypad.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "ui_feedback.h"
 
 // --- Глобальні C++ об'єкти та змінні ---
 static MyKeypad g_keypad;
@@ -38,7 +39,7 @@ void MyKeypad::scan_and_update(void) {
 
                 // 1. МИТТЄВО оновлюємо глобальну змінну
                 g_last_key = key_map[r][c];
-
+                UI_Blink_Once();
                 // 2. Тепер блокуємо ПОТІК, поки кнопку не відпустять
                 while(HAL_GPIO_ReadPin(GPIOA, row_pins[r]) == GPIO_PIN_RESET) {
                     vTaskDelay(pdMS_TO_TICKS(20));
