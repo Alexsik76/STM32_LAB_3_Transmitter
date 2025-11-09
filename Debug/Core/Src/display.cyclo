@@ -3,7 +3,7 @@
 ../Core/Src/display.cpp:35:1:MyDisplay::MyDisplay(I2C_HandleTypeDef*)	1
 ../Core/Src/display.cpp:46:6:bool MyDisplay::init()	1
 ../Core/Src/display.cpp:55:6:void MyDisplay::on_key_press(char)	3
-../Core/Src/display.cpp:68:6:void MyDisplay::update_screen()	3
-../Core/Src/display.cpp:99:6:void MyDisplay::task()	3
-../Core/Src/display.cpp:119:1:void __static_initialization_and_destruction_0()	1
-../Core/Src/display.cpp:119:1:cpp)	1
+../Core/Src/display.cpp:65:6:void MyDisplay::update_screen()	2
+../Core/Src/display.cpp:91:6:void MyDisplay::task()	3
+../Core/Src/display.cpp:111:1:void __static_initialization_and_destruction_0()	1
+../Core/Src/display.cpp:111:1:cpp)	1

@@ -62,11 +62,9 @@ void MyDisplay::on_key_press(char key)
     }
 }
 
-/**
- * @brief Приватний метод оновлення екрану (викликається з task())
- */
 void MyDisplay::update_screen(void)
 {
+    // 1. Малюємо в буфер
     ssd1306_Fill(Black);
     ssd1306_SetCursor(0, 0);
 
@@ -78,17 +76,11 @@ void MyDisplay::update_screen(void)
         ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
     }
 
-    // Запускаємо DMA
-    ssd1306_UpdateScreenDMA(g_i2c_tx_done_sem);
+    // 3. Запускаємо DMA
+    ssd1306_UpdateScreenDMA();
 
-    // Чекаємо на семафор АБО ТАЙМАУТ
-    if (xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100)) == pdFALSE)
-    {
-        // ТАЙМАУТ! (Колбеки не спрацювали)
-        // Це наш "аварійний" фікс, який ми довели
-        HAL_I2C_DeInit(this->hi2c);
-        MX_I2C1_Init();
-    }
+    // 4. Чекаємо на семафор (тепер він МАЄ прийти)
+    xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100));
 
     this->needs_update = false; // Скидаємо прапорець
 }

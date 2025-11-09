@@ -32,7 +32,7 @@ char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color);
 
 // Функції оновлення екрану
 void ssd1306_UpdateScreen(void); // Стара, блокуюча
-void ssd1306_UpdateScreenDMA(SemaphoreHandle_t sem); // Наша нова, неблокуюча
+HAL_StatusTypeDef ssd1306_UpdateScreenDMA(void);
 #ifdef __cplusplus
 }
 #endif
