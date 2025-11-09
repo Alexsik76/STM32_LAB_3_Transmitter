@@ -4,11 +4,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "FreeRTOS.h"
+#include "semphr.h"
 // Функції-обгортки, які буде бачити C-код (наш main.c)
 void display_init(void);
 void display_task(void *argument);
 
+extern SemaphoreHandle_t g_i2c_tx_done_sem;
 #ifdef __cplusplus
 }
 #endif

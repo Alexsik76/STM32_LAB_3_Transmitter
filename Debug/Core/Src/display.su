@@ -2,4 +2,4 @@
 ../Core/Src/display.cpp:29:6:bool MyDisplay::init()	16	static
 ../Core/Src/display.cpp:43:6:void MyDisplay::update_screen_DMA()	16	static
 ../Core/Src/display.cpp:53:6:void display_init()	16	static
-../Core/Src/display.cpp:66:6:void display_task(void*)	40	static
+../Core/Src/display.cpp:66:6:void display_task(void*)	32	static

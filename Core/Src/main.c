@@ -167,7 +167,6 @@ void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
   if (hi2c->Instance == hi2c1.Instance)
   {
     // Знаходимо семафор, який ми створили в display.cpp
-    extern SemaphoreHandle_t g_i2c_tx_done_sem;
 
     // "Віддаємо" семафор з переривання
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -175,6 +174,19 @@ void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 
     // Якщо "віддача" семафора розбудила задачу з вищим пріоритетом,
     // негайно перемикаємо контекст
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+}
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+  if (hi2c->Instance == hi2c1.Instance)
+  {
+    // 1. Примусово скидаємо стан HAL, щоб уникнути HAL_BUSY
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    // 2. "Віддаємо" семафор, щоб розблокувати display_task
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   }
 }

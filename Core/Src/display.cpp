@@ -15,7 +15,7 @@
 
 // --- Глобальні C++ об'єкти ---
 static MyDisplay* g_display; // Глобальний вказівник на наш C++ об'єкт
-static SemaphoreHandle_t g_i2c_tx_done_sem; // Наш семафор
+SemaphoreHandle_t g_i2c_tx_done_sem; // Наш семафор
 
 // --- Реалізація C++ класу MyDisplay ---
 
@@ -65,53 +65,64 @@ void display_init(void)
 // Це тіло нашої RTOS-задачі
 void display_task(void* argument)
 {
-    // ... ініціалізація ...
+    // 1. Гасимо діод
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
-    char current_key = 0; // Локальна змінна для відображення, що зберігає стан
+    if (!g_display->init()) { vTaskDelete(NULL); }
+
+    char current_key = 0; // Локальна змінна для відображення
+    bool needs_update = true; // Прапорець, що змушує оновитися при першому запуску
+
     while (1)
     {
-        char key = keypad_get_key(); // key буде != 0 лише в момент, коли було натиснуто
+        char key = keypad_get_key(); // Читаємо нову клавішу
 
-        // --- ЛОГІКА ЗБЕРЕЖЕННЯ СТАНУ ---
-        if (key != 0) { // Якщо ми отримали подію
-            if (key == '*') {
-                current_key = 0; // СКИНУТИ стан
-            } else {
-                current_key = key; // ЗБЕРЕГТИ останнє натискання
+        if (key != 0) {
+            // Клавіша натиснута
+            char new_key_state = (key == '*') ? 0 : key;
+            if (current_key != new_key_state) {
+                // Стан змінився! (напр., '5' -> '7' або '5' -> '*')
+                current_key = new_key_state;
+                needs_update = true; // Встановлюємо прапорець оновлення
             }
         }
-        // --- КІНЕЦЬ ЛОГІКИ ЗБЕРЕЖЕННЯ СТАНУ ---
 
-        ssd1306_Fill(Black);
-        ssd1306_SetCursor(0, 0);
+        // --- Оновлюємо, ТІЛЬКИ якщо потрібно ---
+        if (needs_update)
+        {
+            ssd1306_Fill(Black);
+            ssd1306_SetCursor(0, 0);
 
-        if (current_key != 0) {
-            char str[10];
-            snprintf(str, 10, "Key: %c", current_key);
-            ssd1306_WriteString(str, &Font_6x8, White);
-        } else {
-            // Виводимо "Hello RTOS!" тільки коли current_key = 0
-
-            ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
-            char str[10];
-            if (current_key >= 32 && current_key <= 126) {
-                snprintf(str, 20, "Key: %c", current_key);
+            if (current_key != 0) {
+                char str[10];
+                snprintf(str, 10, "Key: %c", current_key);
+                ssd1306_WriteString(str, &Font_6x8, White);
             } else {
-                // Якщо це 0 (або інший недрукований символ), виводимо його код
-                snprintf(str, 20, "Code: %d", current_key);
+                ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
             }
-            ssd1306_SetCursor(0, 10);
-            ssd1306_WriteString(str, &Font_6x8, White);
+//            HAL_I2C_DeInit(&hi2c1);  // <<< ВИДАЛИТИ
+//            MX_I2C1_Init();
+            // Запускаємо DMA і чекаємо
+            g_display->update_screen_DMA();
 
 
+            if (xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100)) == pdFALSE)
+                        {
+                            // ТАЙМАУТ! СЕМАФОР НЕ ПРИЙШОВ!
+                            // I2C "залип" у стані HAL_BUSY.
+                            // Використовуємо ВАШ фікс ("кувалду"):
+                            HAL_I2C_DeInit(&hi2c1);
+                            MX_I2C1_Init();
+                        }
+
+            needs_update = false; // Скидаємо прапорець
         }
 
-        g_display->update_screen_DMA();
-        xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100));
+        // Ми "спимо" з коротким інтервалом, щоб швидко реагувати на клавіші,
+        // але не "спамимо" шину I2C завдяки 'needs_update'
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
-
 }
 
 

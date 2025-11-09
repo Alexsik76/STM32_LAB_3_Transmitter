@@ -8,9 +8,6 @@ static MyKeypad g_keypad;
 static volatile char g_last_key = 0;
 
 // Масиви пінів з .h (ми не можемо отримати до них доступ
-// з C-функцій, тому дублюємо тут)
-static const uint16_t row_pins[4] = {GPIO_PIN_8, GPIO_PIN_9, GPIO_PIN_10, GPIO_PIN_11};
-static const uint16_t col_pins[4] = {GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14, GPIO_PIN_15};
 
 // --- Реалізація C++ класу MyKeypad ---
 
