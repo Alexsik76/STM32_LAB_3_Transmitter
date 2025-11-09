@@ -1,129 +1,119 @@
-/*
- * display.cpp
- *
- *  Created on: Nov 7, 2025
- *      Author: osiko
- */
-#include "display.h"      // Підключаємо наш .h файл
-#include "ssd1306.h"      // Пізніше ми додамо цю бібліотеку
-#include "FreeRTOS.h"     // Підключаємо RTOS
-#include "task.h"         // Для vTaskDelay
-#include "semphr.h"       // Для семафорів
-#include "i2c.h"
-#include "keypad.h"
-#include <stdio.h>
+#include "display.h"
+#include "ssd1306.h"
+#include <stdio.h> // Для snprintf
 
-// --- Глобальні C++ об'єкти ---
-static MyDisplay* g_display; // Глобальний вказівник на наш C++ об'єкт
-SemaphoreHandle_t g_i2c_tx_done_sem; // Наш семафор
+// --- Глобальні об'єкти ---
+
+// Створюємо глобальний семафор (доступний для main.c)
+SemaphoreHandle_t g_i2c_tx_done_sem;
+
+// Створюємо глобальний екземпляр нашого C++ класу
+// (Ми не можемо створити його в display_init, бо C++ ще не готовий)
+MyDisplay g_display(&hi2c1);
+
+// --- C-Обгортки (Точка входу) ---
+extern "C" {
+
+// Ця функція викликається ОДИН РАЗ перед запуском RTOS
+void display_init(void)
+{
+    // (Більше не створюємо g_display тут, він вже створений)
+    g_i2c_tx_done_sem = xSemaphoreCreateBinary();
+}
+
+// Цю функцію викликає freertos.c для запуску нашого потоку
+void display_task_entry(void *argument)
+{
+    // Просто передаємо керування нашому C++ об'єкту
+    g_display.task();
+}
+
+} // extern "C"
 
 // --- Реалізація C++ класу MyDisplay ---
 
-// Конструктор: просто зберігаємо вказівник на I2C
-MyDisplay::MyDisplay(I2C_HandleTypeDef* hi2c)
+MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
+    // Ініціалізуємо приватні змінні
     this->hi2c = hi2c;
+    this->current_key = 0;
+    this->needs_update = true; // Оновити екран при першому запуску
 }
 
-// Метод ініціалізації
+/**
+ * @brief Приватний метод ініціалізації I2C
+ */
 bool MyDisplay::init(void)
 {
-    // 1. "Пінг" пристрою з коротким таймаутом
-    if (HAL_I2C_IsDeviceReady(this->hi2c, (SSD1306_I2C_ADDR << 1), 1, 100) != HAL_OK)
-    {
-        return false; // Дисплея немає на шині
-    }
-
-    // 2. Ініціалізація (поки що блокуюча)
-    // ssd1306_Init() поверне 1 (true) при успіху
+    vTaskDelay(pdMS_TO_TICKS(100)); // Затримка на "прокидання"
     return ssd1306_Init();
 }
 
-// Метод неблокуючого оновлення
-void MyDisplay::update_screen_DMA(void)
+/**
+ * @brief Публічний метод, який викликає keypad_task
+ */
+void MyDisplay::on_key_press(char key)
 {
-    // Запускаємо передачу буфера через DMA
-    // Ми будемо використовувати готову функцію з бібліотеки ssd1306
+    char new_key_state = (key == '*') ? 0 : key;
+    if (this->current_key != new_key_state) {
+        // Стан змінився!
+        this->current_key = new_key_state;
+        this->needs_update = true; // Встановлюємо прапорець
+    }
+}
+
+/**
+ * @brief Приватний метод оновлення екрану (викликається з task())
+ */
+void MyDisplay::update_screen(void)
+{
+    ssd1306_Fill(Black);
+    ssd1306_SetCursor(0, 0);
+
+    if (this->current_key != 0) {
+        char str[10];
+        snprintf(str, 10, "Key: %c", this->current_key);
+        ssd1306_WriteString(str, &Font_6x8, White);
+    } else {
+        ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
+    }
+
+    // Запускаємо DMA
     ssd1306_UpdateScreenDMA(g_i2c_tx_done_sem);
+
+    // Чекаємо на семафор АБО ТАЙМАУТ
+    if (xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100)) == pdFALSE)
+    {
+        // ТАЙМАУТ! (Колбеки не спрацювали)
+        // Це наш "аварійний" фікс, який ми довели
+        HAL_I2C_DeInit(this->hi2c);
+        MX_I2C1_Init();
+    }
+
+    this->needs_update = false; // Скидаємо прапорець
 }
 
-// --- C-обгортки (міст до main.c) ---
-extern "C" {
-// Цю функцію викличе main.c ОДИН РАЗ при старті
-void display_init(void)
-{
-    // 1. Створюємо семафор
-    g_i2c_tx_done_sem = xSemaphoreCreateBinary();
-    // 2. Створюємо C++ об'єкт
-    g_display = new MyDisplay(&hi2c1);
-}
-
-// Це тіло нашої RTOS-задачі
-// Це тіло нашої RTOS-задачі
-// Це тіло нашої RTOS-задачі
-// Це тіло нашої RTOS-задачі
-// Це тіло нашої RTOS-задачі
-void display_task(void* argument)
+/**
+ * @brief ГОЛОВНИЙ ЦИКЛ ПОТОКУ ДИСПЛЕЯ
+ */
+void MyDisplay::task(void)
 {
     // 1. Гасимо діод
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
-    if (!g_display->init()) { vTaskDelete(NULL); }
-
-    char current_key = 0; // Локальна змінна для відображення
-    bool needs_update = true; // Прапорець, що змушує оновитися при першому запуску
+    if (!this->init()) { vTaskDelete(NULL); } // Ініціалізуємо себе
 
     while (1)
     {
-        char key = keypad_get_key(); // Читаємо нову клавішу
+        // Ми більше не читаємо клавіатуру тут
 
-        if (key != 0) {
-            // Клавіша натиснута
-            char new_key_state = (key == '*') ? 0 : key;
-            if (current_key != new_key_state) {
-                // Стан змінився! (напр., '5' -> '7' або '5' -> '*')
-                current_key = new_key_state;
-                needs_update = true; // Встановлюємо прапорець оновлення
-            }
-        }
-
-        // --- Оновлюємо, ТІЛЬКИ якщо потрібно ---
-        if (needs_update)
+        // Оновлюємо, ТІЛЬКИ якщо keypad_task попросив
+        if (this->needs_update)
         {
-            ssd1306_Fill(Black);
-            ssd1306_SetCursor(0, 0);
-
-            if (current_key != 0) {
-                char str[10];
-                snprintf(str, 10, "Key: %c", current_key);
-                ssd1306_WriteString(str, &Font_6x8, White);
-            } else {
-                ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
-            }
-//            HAL_I2C_DeInit(&hi2c1);  // <<< ВИДАЛИТИ
-//            MX_I2C1_Init();
-            // Запускаємо DMA і чекаємо
-            g_display->update_screen_DMA();
-
-
-            if (xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100)) == pdFALSE)
-                        {
-                            // ТАЙМАУТ! СЕМАФОР НЕ ПРИЙШОВ!
-                            // I2C "залип" у стані HAL_BUSY.
-                            // Використовуємо ВАШ фікс ("кувалду"):
-                            HAL_I2C_DeInit(&hi2c1);
-                            MX_I2C1_Init();
-                        }
-
-            needs_update = false; // Скидаємо прапорець
+            this->update_screen();
         }
 
-        // Ми "спимо" з коротким інтервалом, щоб швидко реагувати на клавіші,
-        // але не "спамимо" шину I2C завдяки 'needs_update'
+        // Просто спимо і чекаємо
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
-}
-
-
-

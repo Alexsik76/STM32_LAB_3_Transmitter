@@ -2,80 +2,98 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "ui_feedback.h"
+#include "display.h" // Щоб "бачити" клас MyDisplay
 
-// --- Глобальні C++ об'єкти та змінні ---
+// Оголошуємо, що g_display існує в іншому файлі
+extern MyDisplay g_display;
+
+// --- Глобальні C++ об'єкти ---
 static MyKeypad g_keypad;
-static volatile char g_last_key = 0;
-
-// Масиви пінів з .h (ми не можемо отримати до них доступ
+// (g_last_key and keypad_get_key видалені)
 
 // --- Реалізація C++ класу MyKeypad ---
 
 MyKeypad::MyKeypad() {}
 
 void MyKeypad::init(void) {
-    // Встановлюємо всі стовпці в "0" (LOW) - стан очікування
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 }
 
 /**
- * @brief Сканує клавіатуру, оновлює g_last_key і блокується для debounce.
- * @note Ця функція ПОВІННА викликатися з RTOS-задачі, оскільки містить vTaskDelay.
+ * @brief Це ВАШ 100% РОБОЧИЙ КОД сканування, перенесений у клас
+ * @return Символ клавіші або '\0'
  */
-void MyKeypad::scan_and_update(void) {
-    // Встановлюємо ВСІ стовпці у HIGH (неактивний стан)
+char MyKeypad::scan_no_delay(void) {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_SET);
 
-    for (int c = 0; c < 4; c++) {
-        // 1. Активуємо поточний стовпець (LOW)
-        HAL_GPIO_WritePin(GPIOB, col_pins[c], GPIO_PIN_RESET);
+    // Мікро-затримка для стабілізації, яку ми додали раніше
+    for(volatile int i=0; i<500; i++);
 
+    for (int c = 0; c < 4; c++) {
+        HAL_GPIO_WritePin(GPIOB, col_pins[c], GPIO_PIN_RESET);
         for (int r = 0; r < 4; r++) {
             if (HAL_GPIO_ReadPin(GPIOA, row_pins[r]) == GPIO_PIN_RESET) {
-                // КНОПКА ЗНАЙДЕНА!
-
-                // 1. МИТТЄВО оновлюємо глобальну змінну
-                g_last_key = key_map[r][c];
-                UI_Blink_Once();
-                // 2. Тепер блокуємо ПОТІК, поки кнопку не відпустять
-                while(HAL_GPIO_ReadPin(GPIOA, row_pins[r]) == GPIO_PIN_RESET) {
-                    vTaskDelay(pdMS_TO_TICKS(20));
-                }
-
-                // 3. Повертаємо стовпці в стан очікування (LOW), як у вашому коді
+                char key = key_map[r][c];
+                // Повертаємо стовпці в стан очікування
                 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
-                return; // Виходимо з функції scan
+                return key;
             }
         }
-        // 4. Деактивуємо поточний стовпець (HIGH)
+        // Деактивуємо поточний стовпець
         HAL_GPIO_WritePin(GPIOB, col_pins[c], GPIO_PIN_SET);
     }
 
-    // 5. Повертаємо всі стовпці в стан очікування (LOW)
+    // Повертаємо всі стовпці в стан очікування
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+    return '\0';
 }
 
 // --- C-обгортки (міст до RTOS) ---
 extern "C" {
 
+/**
+ * @brief Функція RTOS-задачі з ПРАВИЛЬНИM debounce
+ */
 void keypad_task(void* argument)
 {
     g_keypad.init();
 
+    char last_key_seen = 0;
+    uint32_t press_time = 0;
+    bool key_reported = false; // Прапорець, що ми вже відправили клавішу
+
+    const uint32_t DEBOUNCE_TIME_MS = 50; // 50 мс на debounce
+
     while (1)
     {
-        // Просто викликаємо scan, який сам все зробить
-        g_keypad.scan_and_update();
+        char key = g_keypad.scan_no_delay(); // Скануємо
+        uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
-        // Чекаємо 20 мс перед *наступною* спробою сканування
-        vTaskDelay(pdMS_TO_TICKS(20));
+        if (key != 0) {
+            // Кнопка натиснута
+            if (key != last_key_seen) {
+                // Це нова кнопка
+                last_key_seen = key;
+                press_time = now;
+                key_reported = false; // Скидаємо прапорець
+            } else if (now - press_time > DEBOUNCE_TIME_MS && !key_reported) {
+                // Кнопка утримується > 50 мс і ми її ще не відправляли
+
+                // === ГОЛОВНА ЛОГІКА ===
+                // Передаємо натискання об'єкту дисплея
+                g_display.on_key_press(key);
+                key_reported = true; // Встановлюємо прапорець
+                UI_Blink_Once();
+            }
+        } else {
+            // Кнопку відпустили
+            last_key_seen = 0;
+            key_reported = false;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10)); // Опитуємо кожні 10 мс
     }
 }
 
-char keypad_get_key(void) {
-    char key = g_last_key;
-    g_last_key = 0; // Скидаємо
-    return key;
-}
 
 } // extern "C"

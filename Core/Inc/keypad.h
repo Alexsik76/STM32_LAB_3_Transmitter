@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 void keypad_task(void *argument);
-char keypad_get_key(void); // Функція для отримання натиснутої клавіші
 
 #ifdef __cplusplus
 }
@@ -22,7 +21,7 @@ class MyKeypad
 public:
     MyKeypad();     // Конструктор
     void init(void);    // Ініціалізація
-    void scan_and_update(void);    // Головна функція сканування
+    char scan_no_delay(void);    // Головна функція сканування
 
 private:
     // Мапа символів

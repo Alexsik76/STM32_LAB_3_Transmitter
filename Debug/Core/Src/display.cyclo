@@ -1,5 +1,9 @@
-../Core/Src/display.cpp:23:1:MyDisplay::MyDisplay(I2C_HandleTypeDef*)	1
-../Core/Src/display.cpp:29:6:bool MyDisplay::init()	2
-../Core/Src/display.cpp:43:6:void MyDisplay::update_screen_DMA()	1
-../Core/Src/display.cpp:53:6:void display_init()	1
-../Core/Src/display.cpp:66:6:void display_task(void*)	8
+../Core/Src/display.cpp:18:6:void display_init()	1
+../Core/Src/display.cpp:25:6:void display_task_entry(void*)	1
+../Core/Src/display.cpp:35:1:MyDisplay::MyDisplay(I2C_HandleTypeDef*)	1
+../Core/Src/display.cpp:46:6:bool MyDisplay::init()	1
+../Core/Src/display.cpp:55:6:void MyDisplay::on_key_press(char)	3
+../Core/Src/display.cpp:68:6:void MyDisplay::update_screen()	3
+../Core/Src/display.cpp:99:6:void MyDisplay::task()	3
+../Core/Src/display.cpp:119:1:void __static_initialization_and_destruction_0()	1
+../Core/Src/display.cpp:119:1:cpp)	1

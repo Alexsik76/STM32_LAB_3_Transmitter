@@ -73,7 +73,7 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 	// Створюємо нашу задачу дисплея
-	  xTaskCreate(display_task,        // Функція задачі
+	  xTaskCreate(display_task_entry,        // Функція задачі
 	              "DisplayTask",       // Ім'я
 	              256,                 // Розмір стеку (256 * 4 = 1024 байти)
 	              NULL,                // Аргумент

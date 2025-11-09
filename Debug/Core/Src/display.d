@@ -36,9 +36,7 @@ Core/Src/display.o: ../Core/Src/display.cpp ../Core/Inc/display.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h \
- ../Core/Inc/ssd1306.h ../Core/Inc/fonts.h ../Core/Inc/i2c.h \
- ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../Core/Inc/i2c.h ../Core/Inc/keypad.h
+ ../Core/Inc/ssd1306.h ../Core/Inc/fonts.h ../Core/Inc/i2c.h
 ../Core/Inc/display.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
 ../Core/Inc/FreeRTOSConfig.h:
@@ -81,6 +79,3 @@ Core/Src/display.o: ../Core/Src/display.cpp ../Core/Inc/display.h \
 ../Core/Inc/ssd1306.h:
 ../Core/Inc/fonts.h:
 ../Core/Inc/i2c.h:
-../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
-../Core/Inc/i2c.h:
-../Core/Inc/keypad.h:
