@@ -2,96 +2,113 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "ui_feedback.h"
-#include "display.h" // Щоб "бачити" клас MyDisplay
+#include "display.h" // To see the MyDisplay class
 
-// Оголошуємо, що g_display існує в іншому файлі
+// Declare the global g_display object (defined in display.cpp)
 extern MyDisplay g_display;
 
-// --- Глобальні C++ об'єкти ---
-static MyKeypad g_keypad;
-// (g_last_key and keypad_get_key видалені)
+// --- Global C++ Objects ---
 
-// --- Реалізація C++ класу MyKeypad ---
+/**
+ * @brief Global instance of our C++ keypad class.
+ */
+static MyKeypad g_keypad;
+
+// --- C++ Class Implementation ---
 
 MyKeypad::MyKeypad() {}
 
+/**
+ * @brief Initializes the keypad GPIOs to a default (idle) state.
+ */
 void MyKeypad::init(void) {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+    // Set all columns to LOW (idle state)
+    // Using the 'all_col_pins' constant from keypad.h
+    HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_RESET);
 }
 
 /**
- * @brief Це ВАШ 100% РОБОЧИЙ КОД сканування, перенесений у клас
- * @return Символ клавіші або '\0'
+ * @brief Performs a single, non-blocking scan based on the proven C logic.
+ * @return The character of the first key found, or '\0' if none.
  */
 char MyKeypad::scan_no_delay(void) {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_SET);
+    // 1. Set all columns to HIGH (inactive state for pull-up logic)
+    HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_SET);
 
-    // Мікро-затримка для стабілізації, яку ми додали раніше
+    // Micro-delay for signal stabilization
     for(volatile int i=0; i<500; i++);
 
+    // 2. Iterate through columns
     for (int c = 0; c < 4; c++) {
+        // Activate the current column (set LOW)
         HAL_GPIO_WritePin(GPIOB, col_pins[c], GPIO_PIN_RESET);
+
+        // 3. Read all rows
         for (int r = 0; r < 4; r++) {
+            // Check if the pull-up input pin is pulled LOW
             if (HAL_GPIO_ReadPin(GPIOA, row_pins[r]) == GPIO_PIN_RESET) {
                 char key = key_map[r][c];
-                // Повертаємо стовпці в стан очікування
-                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+
+                // 4. Return all columns to idle state (LOW)
+                HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_RESET);
                 return key;
             }
         }
-        // Деактивуємо поточний стовпець
+        // Deactivate the current column (set HIGH)
         HAL_GPIO_WritePin(GPIOB, col_pins[c], GPIO_PIN_SET);
     }
 
-    // Повертаємо всі стовпці в стан очікування
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+    // 5. Return all columns to idle state (LOW)
+    HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_RESET);
     return '\0';
 }
 
-// --- C-обгортки (міст до RTOS) ---
+// --- C-Wrappers (RTOS Task) ---
 extern "C" {
 
 /**
- * @brief Функція RTOS-задачі з ПРАВИЛЬНИM debounce
+ * @brief RTOS task for handling the keypad.
+ * @note This task performs the scan and all debounce logic,
+ * then communicates the result to the display task.
  */
 void keypad_task(void* argument)
 {
     g_keypad.init();
 
+    // State variables for the debounce logic
     char last_key_seen = 0;
     uint32_t press_time = 0;
-    bool key_reported = false; // Прапорець, що ми вже відправили клавішу
+    bool key_reported = false; // Flag to prevent key spamming
 
-    const uint32_t DEBOUNCE_TIME_MS = 50; // 50 мс на debounce
+    const uint32_t DEBOUNCE_TIME_MS = 50; // 50ms for a stable press
 
     while (1)
     {
-        char key = g_keypad.scan_no_delay(); // Скануємо
+        char key = g_keypad.scan_no_delay(); // Poll the hardware
         uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         if (key != 0) {
-            // Кнопка натиснута
+            // A key is physically pressed
             if (key != last_key_seen) {
-                // Це нова кнопка
+                // This is a new key press
                 last_key_seen = key;
                 press_time = now;
-                key_reported = false; // Скидаємо прапорець
+                key_reported = false; // Reset the "reported" flag
             } else if (now - press_time > DEBOUNCE_TIME_MS && !key_reported) {
-                // Кнопка утримується > 50 мс і ми її ще не відправляли
+                // The key has been held for > 50ms and we haven't reported it yet
 
-                // === ГОЛОВНА ЛОГІКА ===
-                // Передаємо натискання об'єкту дисплея
-                g_display.on_key_press(key);
-                key_reported = true; // Встановлюємо прапорець
-                UI_Blink_Once();
+                // --- Main Logic ---
+                g_display.on_key_press(key); // Report to display
+                key_reported = true;         // Mark as reported
+                UI_Blink_Once();             // Blink the LED
             }
         } else {
-            // Кнопку відпустили
+            // No key is pressed
             last_key_seen = 0;
             key_reported = false;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(10)); // Опитуємо кожні 10 мс
+        vTaskDelay(pdMS_TO_TICKS(10)); // Poll every 10ms
     }
 }
 

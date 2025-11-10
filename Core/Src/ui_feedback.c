@@ -8,25 +8,28 @@
 #include "ui_feedback.h"
 
 /**
- * @brief Вмикає світлодіод для зворотного зв'язку (початок блимання).
+ * @brief Turns on the LED for feedback (blink start).
  */
-
 static void UI_Blink_Start(void)
 {
-  // Увімкнути світлодіод (встановити пін в '0' для Blue Pill)
+  // Turn ON the LED (set pin to '0' for Blue Pill)
+  // NOTE: This will fail to compile if 'LED_BUILTIN' is not a User Label for PC13
   HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_RESET);
 }
 
 /**
- * @brief Перевіряє, чи час блимання вийшов, і вимикає світлодіод.
- * Викликати у головному циклі.
+ * @brief Turns off the LED for feedback (blink end).
  */
 static void UI_Blink_End(void)
 {
-    // Вимкнути світлодіод (встановити пін в '1' для Blue Pill)
+    // Turn OFF the LED (set pin to '1' for Blue Pill)
     HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
 }
 
+/**
+ * @brief Performs a single, non-blocking 50ms UI blink.
+ * @note This function MUST be called from an RTOS task context.
+ */
 void UI_Blink_Once(void)
 {
 	UI_Blink_Start();

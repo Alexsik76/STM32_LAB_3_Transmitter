@@ -4,42 +4,76 @@
 #include "semphr.h"
 #include "main.h"
 
-// --- C-Обгортки ---
-// (Вони потрібні лише для запуску C++ з C-файлу freertos.c)
+// --- C-Wrappers ---
+// C-callable functions for starting the task and initialization.
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void display_task_entry(void *argument); // C-функція запуску
-extern SemaphoreHandle_t g_i2c_tx_done_sem; // Наш глобальний семафор
+/**
+ * @brief RTOS task entry function (called by freertos.c).
+ */
+void display_task_entry(void *argument);
+
+/**
+ * @brief C-callable function to initialize the display subsystem.
+ */
+void display_init(void);
+
+/**
+ * @brief Global semaphore, signaled by I2C/DMA interrupts (defined in display.cpp).
+ */
+extern SemaphoreHandle_t g_i2c_tx_done_sem;
 
 #ifdef __cplusplus
 }
 #endif
 
-// --- C++ Світ ---
+// --- C++ World ---
 #ifdef __cplusplus
 
-// Оголошуємо наш C++ клас
+/**
+ * @brief Main class for managing the OLED Display.
+ * This class encapsulates all logic for the display task,
+ * including state and screen updates.
+ */
 class MyDisplay
 {
 public:
-    MyDisplay(I2C_HandleTypeDef *hi2c); // Конструктор
+    /**
+     * @brief Constructor.
+     * @param hi2c Pointer to the HAL I2C handle.
+     */
+    MyDisplay(I2C_HandleTypeDef *hi2c);
 
-    // Наш головний потік RTOS (тепер це метод класу)
+    /**
+     * @brief The main RTOS task loop for the display.
+     * This function runs forever after initialization.
+     */
     void task(void);
 
-    // Публічний метод, який "приймає" натискання клавіш
+    /**
+     * @brief Public API for the keypad task to report a key press.
+     * @param key The character that was pressed.
+     */
     void on_key_press(char key);
 
 private:
-    bool init(void);            // Приватна ініціалізація
-    void update_screen(void);   // Приватне оновлення екрану
+    /**
+     * @brief Initializes the SSD1306 controller.
+     * @return true if successful, false otherwise.
+     */
+    bool init(void);
 
-    // --- Стан (State) класу ---
-    I2C_HandleTypeDef *hi2c;
-    char current_key;           // Поточна клавіша ('0' = нічого)
-    bool needs_update;          // Прапорець "треба перемалювати"
+    /**
+     * @brief Renders the current state to the buffer and sends it via DMA.
+     */
+    void update_screen(void);
+
+    // --- Class State ---
+    I2C_HandleTypeDef *hi2c;    // I2C handle
+    char current_key;           // The last key pressed ('\0' = none)
+    bool needs_update;          // Flag to trigger a screen redraw
 };
 
 #endif // __cplusplus

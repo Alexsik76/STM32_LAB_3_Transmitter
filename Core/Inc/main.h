@@ -73,7 +73,7 @@ void Error_Handler(void);
 #define KEY_ROW_1_GPIO_Port GPIOA
 #define KEY_ROW_2_Pin GPIO_PIN_10
 #define KEY_ROW_2_GPIO_Port GPIOA
-#define KEY_ROW_3_Pin GPIO_PIN_11
+#define KEY_ROW_3_Pin GPIO_PIN_15
 #define KEY_ROW_3_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */

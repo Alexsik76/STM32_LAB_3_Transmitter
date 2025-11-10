@@ -7,13 +7,15 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-// Блок, який говорить C++-компілятору:
-// "Ці функції є C-функціями і не мають спотворюватися."
+// C-wrapper block to ensure C++ compatibility.
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void UI_Blink_Once(void); // <<< ТЕПЕР ОГОЛОШЕНО ЯК C-ФУНКЦІЯ
+/**
+ * @brief Performs a single, non-blocking UI blink (e.g., LED).
+ */
+void UI_Blink_Once(void);
 
 #ifdef __cplusplus
 }

@@ -26,9 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "display.h"
-#include "FreeRTOS.h"
-#include "semphr.h"
+#include "display.h" // Provides display_init() and our I2C callbacks
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -70,7 +68,6 @@ void MX_FREERTOS_Init(void);
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -97,7 +94,7 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  display_init();
+  display_init(); // Initialize our display subsystem (creates semaphore)
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -160,31 +157,40 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-// Ця функція буде викликана HAL, коли I2C DMA передача завершена
+
+/**
+  * @brief  I2C DMA Transfer Complete (Success) Callback.
+  * @note   This is triggered by the I2C Event Interrupt when DMA finishes.
+  */
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
-  // Перевіряємо, що це наш I2C1
+  // Check if this is our I2C1 peripheral
   if (hi2c->Instance == hi2c1.Instance)
   {
-    // Знаходимо семафор, який ми створили в display.cpp
-
-    // "Віддаємо" семафор з переривання
+    // Give the semaphore to unblock the display_task
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
 
-    // Якщо "віддача" семафора розбудила задачу з вищим пріоритетом,
-    // негайно перемикаємо контекст
+    // If giving the semaphore woke up a higher-priority task,
+    // force a context switch immediately.
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   }
 }
+
+/**
+  * @brief  I2C Error Callback.
+  * @note   This is triggered by the I2C Error Interrupt.
+  */
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
   if (hi2c->Instance == hi2c1.Instance)
   {
-    // 1. Примусово скидаємо стан HAL, щоб уникнути HAL_BUSY
+    // 1. Manually reset the HAL state to HAL_I2C_STATE_READY.
+    // This is our "elegant fix" to clear the HAL_BUSY state.
     hi2c->State = HAL_I2C_STATE_READY;
 
-    // 2. "Віддаємо" семафор, щоб розблокувати display_task
+    // 2. Also give the semaphore to unblock the display_task,
+    //    so it doesn't get stuck on xSemaphoreTake().
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -228,10 +234,11 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
+
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
+  * where the assert_param error has occurred.
   * @param  file: pointer to the source file name
   * @param  line: assert_param error line source number
   * @retval None

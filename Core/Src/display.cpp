@@ -1,111 +1,140 @@
 #include "display.h"
 #include "ssd1306.h"
-#include <stdio.h> // Для snprintf
+#include <stdio.h> // For snprintf
 
-// --- Глобальні об'єкти ---
+// --- Global Objects ---
 
-// Створюємо глобальний семафор (доступний для main.c)
+/**
+ * @brief Global semaphore, signaled by I2C/DMA interrupts (defined in display.cpp).
+ * It is declared 'extern' in display.h to be visible by main.c
+ */
 SemaphoreHandle_t g_i2c_tx_done_sem;
 
-// Створюємо глобальний екземпляр нашого C++ класу
-// (Ми не можемо створити його в display_init, бо C++ ще не готовий)
+/**
+ * @brief Global instance of our C++ display class.
+ * @note This relies on hi2c1 being globally defined in i2c.h (which is included via ssd1306.h)
+ */
 MyDisplay g_display(&hi2c1);
 
-// --- C-Обгортки (Точка входу) ---
+// --- C-Wrappers (Entry Point) ---
 extern "C" {
 
-// Ця функція викликається ОДИН РАЗ перед запуском RTOS
+/**
+ * @brief C-callable function to initialize the display subsystem.
+ * @note Called once from main.c before the RTOS scheduler starts.
+ */
 void display_init(void)
 {
-    // (Більше не створюємо g_display тут, він вже створений)
+    // Create the binary semaphore (it starts "empty")
     g_i2c_tx_done_sem = xSemaphoreCreateBinary();
 }
 
-// Цю функцію викликає freertos.c для запуску нашого потоку
+/**
+ * @brief RTOS task entry function.
+ * @note Called by freertos.c to start the display task.
+ */
 void display_task_entry(void *argument)
 {
-    // Просто передаємо керування нашому C++ об'єкту
+    // Pass control to our C++ object's main task method
     g_display.task();
 }
 
 } // extern "C"
 
-// --- Реалізація C++ класу MyDisplay ---
+// --- C++ Class Implementation ---
 
+/**
+ * @brief Constructor for MyDisplay class.
+ */
 MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
-    // Ініціалізуємо приватні змінні
+    // Initialize private member variables
     this->hi2c = hi2c;
-    this->current_key = 0;
-    this->needs_update = true; // Оновити екран при першому запуску
+    this->current_key = 0;      // '\0' means no key is active
+    this->needs_update = true;  // Force a screen update on the first run
 }
 
 /**
- * @brief Приватний метод ініціалізації I2C
+ * @brief Private method to initialize the SSD1306 controller.
  */
 bool MyDisplay::init(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(100)); // Затримка на "прокидання"
+    // Wait for the display to power on and stabilize
+    vTaskDelay(pdMS_TO_TICKS(100));
     return ssd1306_Init();
 }
 
 /**
- * @brief Публічний метод, який викликає keypad_task
+ * @brief Public API called by the keypad task to report a key press.
  */
 void MyDisplay::on_key_press(char key)
 {
+    // '*' key acts as a 'clear' command
     char new_key_state = (key == '*') ? 0 : key;
+
     if (this->current_key != new_key_state) {
-        // Стан змінився!
+        // Only update if the state has actually changed
         this->current_key = new_key_state;
-        this->needs_update = true; // Встановлюємо прапорець
+        this->needs_update = true; // Set the flag to trigger a redraw
     }
 }
 
+/**
+ * @brief Private method to render the buffer and send it to the display via DMA.
+ */
 void MyDisplay::update_screen(void)
 {
-    // 1. Малюємо в буфер
+    // 1. Draw all content to the internal screen buffer
     ssd1306_Fill(Black);
     ssd1306_SetCursor(0, 0);
 
     if (this->current_key != 0) {
+        // A key is active
         char str[10];
         snprintf(str, 10, "Key: %c", this->current_key);
         ssd1306_WriteString(str, &Font_6x8, White);
     } else {
-        ssd1306_WriteString("Hello RTOS!", &Font_6x8, White);
+        // No key is active
+        ssd1306_WriteString("Press a key", &Font_6x8, White);
     }
 
-    // 3. Запускаємо DMA
+    // 2. Start the non-blocking DMA transfer
     ssd1306_UpdateScreenDMA();
 
-    // 4. Чекаємо на семафор (тепер він МАЄ прийти)
+    // 3. Wait for the transfer to complete.
+    // The semaphore is given by the I2C/DMA interrupt callbacks.
+    // This also acts as our (now functional) I2C peripheral lock protection.
     xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100));
 
-    this->needs_update = false; // Скидаємо прапорець
+    // 4. Clear the flag
+    this->needs_update = false;
 }
 
 /**
- * @brief ГОЛОВНИЙ ЦИКЛ ПОТОКУ ДИСПЛЕЯ
+ * @brief The main, infinite loop for the display RTOS task.
  */
 void MyDisplay::task(void)
 {
-    // 1. Гасимо діод
+    // 1. Turn off the onboard LED (PC13)
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
-    if (!this->init()) { vTaskDelete(NULL); } // Ініціалізуємо себе
+    // Initialize the display
+    if (!this->init()) {
+        vTaskDelete(NULL); // Initialization failed, kill the task
+    }
 
+    // Main task loop
     while (1)
     {
-        // Ми більше не читаємо клавіатуру тут
-
-        // Оновлюємо, ТІЛЬКИ якщо keypad_task попросив
+        // We no longer read the keypad here.
+        // We only check if the keypad task has "told" us to redraw.
         if (this->needs_update)
         {
             this->update_screen();
         }
 
-        // Просто спимо і чекаємо
+        // Sleep to yield CPU time.
+        // The display will only update as fast as the keypad sends events.
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
