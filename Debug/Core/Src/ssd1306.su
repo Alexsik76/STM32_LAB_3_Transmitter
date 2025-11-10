@@ -8,3 +8,5 @@
 ../Core/Src/ssd1306.c:158:13:ssd1306_SetFullAddressWindow	8	static
 ../Core/Src/ssd1306.c:171:6:ssd1306_UpdateScreen	24	static
 ../Core/Src/ssd1306.c:183:19:ssd1306_UpdateScreenDMA	16	static
+../Core/Src/ssd1306.c:200:13:ssd1306_WriteChar_Large	32	static
+../Core/Src/ssd1306.c:231:6:ssd1306_WriteString_Large	24	static

@@ -64,6 +64,11 @@ void ssd1306_SetCursor(uint8_t x, uint8_t y);
 char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color);
 
 /**
+ * @brief Draws a string (16-bit font like 11x18).
+ */
+char ssd1306_WriteString_Large(const char* str, FontDef_t* Font, uint8_t color);
+
+/**
  * @brief Updates the screen using a blocking I2C write.
  * @note Used only for initial setup before RTOS starts.
  */

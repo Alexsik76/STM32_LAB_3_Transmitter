@@ -192,3 +192,54 @@ HAL_StatusTypeDef ssd1306_UpdateScreenDMA(void)
                                     SSD1306_Buffer,
                                     sizeof(SSD1306_Buffer));
 }
+
+/**
+ * @brief Private function to draw a single 16-bit character (like 11x18).
+ * @note  This is separate from WriteChar (which is for 8-bit fonts).
+ */
+static char ssd1306_WriteChar_Large(char ch, FontDef_t* Font, uint8_t color)
+{
+    uint32_t i, b, j;
+
+    // Check boundaries
+    if (SSD1306_WIDTH <= (current_x + Font->FontWidth) ||
+        SSD1306_HEIGHT <= (current_y + Font->FontHeight))
+    {
+        return 0; // Error
+    }
+
+    // Draw the character
+    for (i = 0; i < Font->FontHeight; i++) {
+        b = Font->data[(ch - 32) * Font->FontHeight + i]; // Get 16-bit data for row
+        for (j = 0; j < Font->FontWidth; j++) {
+            // Check bits from left (MSB) to right
+            if ((b << j) & 0x8000) {
+                ssd1306_DrawPixel(current_x + j, (current_y + i), (uint8_t) color);
+            } else {
+                ssd1306_DrawPixel(current_x + j, (current_y + i), (uint8_t)!color);
+            }
+        }
+    }
+
+    current_x += Font->FontWidth; // Move cursor
+    return ch;
+}
+
+/**
+ * @brief Public function to draw a string (16-bit font).
+ */
+char ssd1306_WriteString_Large(const char* str, FontDef_t* Font, uint8_t color)
+{
+    while (*str) {
+        // Check if font data exists (not NULL)
+        if (Font->data == NULL) {
+            return *str; // Error: Font data is missing
+        }
+
+        if (ssd1306_WriteChar_Large(*str, Font, color) != *str) {
+            return *str; // Error
+        }
+        str++;
+    }
+    return *str; // Success
+}
