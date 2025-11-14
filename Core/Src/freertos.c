@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "display.h"
 #include "keypad.h"
+#include "radio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,7 +73,9 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-	// Створюємо нашу задачу дисплея
+	display_init();
+	radio_init();
+
 	  xTaskCreate(display_task_entry,        // Функція задачі
 	              "DisplayTask",       // Ім'я
 	              256,                 // Розмір стеку (256 * 4 = 1024 байти)
@@ -85,6 +88,12 @@ void MX_FREERTOS_Init(void) {
 	              NULL,                // Аргумент
 	              osPriorityNormal,    // Пріоритет
 	              NULL);               // Хендл (не потрібен)
+	  xTaskCreate(radio_task_entry,    // Функція задачі
+	              "RadioTask",         // Ім'я
+	              256,                 // Розмір стеку
+	              NULL,                // Аргумент
+	              osPriorityNormal,    // Пріоритет
+	              NULL);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */

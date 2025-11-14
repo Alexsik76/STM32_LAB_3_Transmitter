@@ -3,10 +3,11 @@
 #include "task.h"
 #include "ui_feedback.h"
 #include "display.h" // To see the MyDisplay class
-
+#include "radio.h"
+#include <cstring>
 // Declare the global g_display object (defined in display.cpp)
 extern MyDisplay g_display;
-
+extern MyRadio g_radio;
 // --- Global C++ Objects ---
 
 /**
@@ -71,6 +72,11 @@ extern "C" {
  * @note This task performs the scan and all debounce logic,
  * then communicates the result to the display task.
  */
+/**
+ * @brief RTOS task for handling the keypad.
+ * @note This task performs the scan and all debounce logic,
+ * then communicates the result to the display and radio tasks.
+ */
 void keypad_task(void* argument)
 {
     g_keypad.init();
@@ -78,13 +84,13 @@ void keypad_task(void* argument)
     // State variables for the debounce logic
     char last_key_seen = 0;
     uint32_t press_time = 0;
-    bool key_reported = false; // Flag to prevent key spamming
+    bool key_reported = false;
 
-    const uint32_t DEBOUNCE_TIME_MS = 50; // 50ms for a stable press
+    const uint32_t DEBOUNCE_TIME_MS = 50;
 
     while (1)
     {
-        char key = g_keypad.scan_no_delay(); // Poll the hardware
+        char key = g_keypad.scan_no_delay();
         uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
         if (key != 0) {
@@ -93,14 +99,36 @@ void keypad_task(void* argument)
                 // This is a new key press
                 last_key_seen = key;
                 press_time = now;
-                key_reported = false; // Reset the "reported" flag
+                key_reported = false;
             } else if (now - press_time > DEBOUNCE_TIME_MS && !key_reported) {
                 // The key has been held for > 50ms and we haven't reported it yet
-
-                // --- Main Logic ---
-                g_display.on_key_press(key); // Report to display
-                key_reported = true;         // Mark as reported
+                key_reported = true;
                 UI_Blink_Once();             // Blink the LED
+
+                // === НОВА ЛОГІКА КЕРУВАННЯ РЕЖИМАМИ ===
+
+                if (key == '#') {
+                    // Режим 1: Передача "Abc"
+                    g_display.set_status_text("Mode: TX 'Abc'");
+                    g_display.on_key_press('*');
+                    // Готуємо наш 32-байтний пакет
+                    uint8_t tx_buf[32] = {0}; // Обнуляємо буфер
+                    strncpy((char*)tx_buf, "Abc", sizeof(tx_buf) - 1);
+
+                    // Відправляємо дані в чергу radio_task
+                    g_radio.send_data(tx_buf);
+
+                } else if (key == '*') {
+                    // '*' - це "Стерти" / Повернути в стан очікування
+                    g_display.set_status_text("Press a key");
+                    g_display.on_key_press(key); // (key == '*' змусить дисплей стерти)
+
+                } else {
+                    // Всі інші клавіші: просто відобразити
+                    g_display.set_status_text("Key:");
+                    g_display.on_key_press(key);
+                }
+                // === КІНЕЦЬ НОВОЇ ЛОГІКИ ===
             }
         } else {
             // No key is pressed
@@ -111,6 +139,5 @@ void keypad_task(void* argument)
         vTaskDelay(pdMS_TO_TICKS(10)); // Poll every 10ms
     }
 }
-
 
 } // extern "C"

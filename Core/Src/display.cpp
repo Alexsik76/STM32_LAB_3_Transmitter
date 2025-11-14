@@ -1,7 +1,7 @@
 #include "display.h"
 #include "ssd1306.h"
 #include <stdio.h> // For snprintf
-
+#include <cstring>
 // --- Global Objects ---
 
 /**
@@ -52,6 +52,8 @@ MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
     this->hi2c = hi2c;
     this->current_key = 0;      // '\0' means no key is active
     this->needs_update = true;  // Force a screen update on the first run
+    // Initialize the status text buffer
+    strncpy(this->status_text, "Press a key", sizeof(this->status_text) - 1);
 }
 
 /**
@@ -78,6 +80,17 @@ void MyDisplay::on_key_press(char key)
         this->needs_update = true; // Set the flag to trigger a redraw
     }
 }
+/**
+ * @brief Public API to set the top-left status bar text.
+ */
+void MyDisplay::set_status_text(const char* text)
+{
+    // Copy the new text into our buffer
+    strncpy(this->status_text, text, sizeof(this->status_text) - 1);
+    this->status_text[sizeof(this->status_text) - 1] = '\0'; // Ensure null termination
+
+    this->needs_update = true; // Trigger a screen redraw
+}
 
 /**
  * @brief Private method to render the buffer and send it to the display via DMA.
@@ -95,13 +108,7 @@ void MyDisplay::update_screen(void)
     // Set cursor to the top-left for the status text
     ssd1306_SetCursor(0, 0);
 
-    if (this->current_key == 0) {
-        // No key pressed, show "Press a key"
-        ssd1306_WriteString("Press a key", &Font_6x8, White);
-    } else {
-        // A key is active, show "Key:"
-        ssd1306_WriteString("Key:", &Font_6x8, White);
-    }
+    ssd1306_WriteString(this->status_text, &Font_6x8, White);
 
     // (We will reserve the top-right corner for radio icons later)
     // ssd1306_SetCursor(112, 0);

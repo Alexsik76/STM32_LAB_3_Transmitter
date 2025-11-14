@@ -4,4 +4,4 @@
 ../Core/Src/main.c:184:6:HAL_I2C_ErrorCallback	3
 ../Core/Src/main.c:209:6:HAL_TIM_PeriodElapsedCallback	2
 ../Core/Src/main.c:227:6:Error_Handler	1
-../Core/Src/main.c:246:6:assert_failed	1
+../Core/Src/main.c:245:6:assert_failed	1

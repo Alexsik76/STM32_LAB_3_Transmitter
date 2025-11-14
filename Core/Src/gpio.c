@@ -54,10 +54,11 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, LED_BUILTIN_Pin|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(NRF24_CSN_GPIO_Port, NRF24_CSN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, KEY_COL_0_Pin|KEY_COL_1_Pin|KEY_COL_2_Pin|KEY_COL_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, NRF24_CE_Pin|KEY_COL_0_Pin|KEY_COL_1_Pin|KEY_COL_2_Pin
+                          |KEY_COL_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : LED_BUILTIN_Pin PC15 */
   GPIO_InitStruct.Pin = LED_BUILTIN_Pin|GPIO_PIN_15;
@@ -66,31 +67,37 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  /*Configure GPIO pin : NRF24_CSN_Pin */
+  GPIO_InitStruct.Pin = NRF24_CSN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(NRF24_CSN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : KEY_COL_0_Pin KEY_COL_1_Pin KEY_COL_2_Pin KEY_COL_3_Pin */
-  GPIO_InitStruct.Pin = KEY_COL_0_Pin|KEY_COL_1_Pin|KEY_COL_2_Pin|KEY_COL_3_Pin;
+  /*Configure GPIO pins : NRF24_CE_Pin KEY_COL_0_Pin KEY_COL_1_Pin KEY_COL_2_Pin
+                           KEY_COL_3_Pin */
+  GPIO_InitStruct.Pin = NRF24_CE_Pin|KEY_COL_0_Pin|KEY_COL_1_Pin|KEY_COL_2_Pin
+                          |KEY_COL_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : KEY_ROW_0_Pin KEY_ROW_1_Pin KEY_ROW_2_Pin */
-  GPIO_InitStruct.Pin = KEY_ROW_0_Pin|KEY_ROW_1_Pin|KEY_ROW_2_Pin;
+  /*Configure GPIO pin : NRF24_IRQ_Pin */
+  GPIO_InitStruct.Pin = NRF24_IRQ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(NRF24_IRQ_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEY_ROW_0_Pin KEY_ROW_1_Pin KEY_ROW_2_Pin KEY_ROW_3_Pin */
+  GPIO_InitStruct.Pin = KEY_ROW_0_Pin|KEY_ROW_1_Pin|KEY_ROW_2_Pin|KEY_ROW_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : KEY_ROW_3_Pin */
-  GPIO_InitStruct.Pin = KEY_ROW_3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(KEY_ROW_3_GPIO_Port, &GPIO_InitStruct);
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 }
 
