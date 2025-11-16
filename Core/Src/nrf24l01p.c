@@ -58,6 +58,16 @@ static uint8_t write_register(uint8_t reg, uint8_t value)
     return write_val;
 }
 
+static void write_register_multi(uint8_t reg, uint8_t* value, uint8_t len)
+{
+    uint8_t command = NRF24L01P_CMD_W_REGISTER | reg;
+    uint8_t status;
+
+    cs_low();
+    HAL_SPI_TransmitReceive(NRF24L01P_SPI, &command, &status, 1, 2000);
+    HAL_SPI_Transmit(NRF24L01P_SPI, value, len, 2000);
+    cs_high();
+}
 
 /* nRF24L01+ Main Functions */
 void nrf24l01p_rx_init(channel MHz, air_data_rate bps)
@@ -123,14 +133,12 @@ void nrf24l01p_tx_irq()
     if(tx_ds)
     {
         // TX_DS
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
         nrf24l01p_clear_tx_ds();
     }
 
     else
     {
         // MAX_RT
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, SET);
         nrf24l01p_clear_max_rt();
     }
 }
@@ -365,6 +373,17 @@ void nrf24l01p_set_rf_air_data_rate(air_data_rate bps)
             break;
     }
     write_register(NRF24L01P_REG_RF_SETUP, new_rf_setup);
+}
+void nrf24l01p_set_tx_address(uint8_t* address)
+{
+    // Встановлює 5-байтну TX адресу
+    write_register_multi(NRF24L01P_REG_TX_ADDR, address, 5);
+}
+
+void nrf24l01p_set_rx_address_p0(uint8_t* address)
+{
+    // Встановлює 5-байтну RX адресу для Pipe 0
+    write_register_multi(NRF24L01P_REG_RX_ADDR_P0, address, 5);
 }
 
 

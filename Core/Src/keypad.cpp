@@ -108,27 +108,30 @@ void keypad_task(void* argument)
                 // === НОВА ЛОГІКА КЕРУВАННЯ РЕЖИМАМИ ===
 
                 if (key == '#') {
-                    // Режим 1: Передача "Abc"
-                    g_display.set_status_text("Mode: TX 'Abc'");
-                    g_display.on_key_press('*');
-                    // Готуємо наш 32-байтний пакет
-                    uint8_t tx_buf[32] = {0}; // Обнуляємо буфер
-                    strncpy((char*)tx_buf, "Abc", sizeof(tx_buf) - 1);
+					// Режим 1: Передача "Abc"
+					g_display.set_status_text("Sending...");    // Статус вгорі
+					g_display.set_main_text("Abc");          // Дані в центрі
+					g_display.on_key_press(0);               // Очищуємо натиснуту клавішу
 
-                    // Відправляємо дані в чергу radio_task
-                    g_radio.send_data(tx_buf);
+					// Готуємо наш 32-байтний пакет
+					uint8_t tx_buf[32] = {0}; // Обнуляємо буфер
+					strncpy((char*)tx_buf, "Abc", sizeof(tx_buf) - 1);
 
-                } else if (key == '*') {
-                    // '*' - це "Стерти" / Повернути в стан очікування
-                    g_display.set_status_text("Press a key");
-                    g_display.on_key_press(key); // (key == '*' змусить дисплей стерти)
+					// Відправляємо дані в чергу radio_task
+					g_radio.send_data(tx_buf);
 
-                } else {
-                    // Всі інші клавіші: просто відобразити
-                    g_display.set_status_text("Key:");
-                    g_display.on_key_press(key);
-                }
-                // === КІНЕЦЬ НОВОЇ ЛОГІКИ ===
+				} else if (key == '*') {
+					// '*' - це "Стерти" / Повернути в стан очікування
+					g_display.set_status_text("Idle");
+					g_display.set_main_text("");       // Очищуємо головний екран
+					g_display.on_key_press(0);         // Очищуємо натиснуту клавішу
+
+				} else {
+					// Всі інші клавіші: просто відобразити
+					g_display.set_status_text("Key Press");
+					g_display.set_main_text("");       // Очищуємо головний екран
+					g_display.on_key_press(key);       // Показуємо клавішу
+				}
             }
         } else {
             // No key is pressed

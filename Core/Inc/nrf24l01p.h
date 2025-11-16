@@ -77,6 +77,9 @@ void nrf24l01p_ptx_mode();
 void nrf24l01p_power_up();
 void nrf24l01p_power_down();
 
+void nrf24l01p_set_tx_address(uint8_t* address);
+void nrf24l01p_set_rx_address_p0(uint8_t* address);
+
 uint8_t nrf24l01p_get_status();
 uint8_t nrf24l01p_get_fifo_status();
 

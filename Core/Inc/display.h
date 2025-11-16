@@ -62,6 +62,7 @@ public:
          * @param text The new string to display.
          */
     void set_status_text(const char* text);
+    void set_main_text(const char* text);
 private:
     /**
      * @brief Initializes the SSD1306 controller.
@@ -79,6 +80,7 @@ private:
     char current_key;           // The last key pressed ('\0' = none)
     bool needs_update;          // Flag to trigger a screen redraw
     char status_text[24];
+    char main_text[33];
 };
 
 #endif // __cplusplus

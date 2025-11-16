@@ -50,7 +50,8 @@ MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
     // Initialize private member variables
     this->hi2c = hi2c;
-    this->current_key = 0;      // '\0' means no key is active
+    this->current_key = 0;
+    this->main_text[0] = '\0';// '\0' means no key is active
     this->needs_update = true;  // Force a screen update on the first run
     // Initialize the status text buffer
     strncpy(this->status_text, "Press a key", sizeof(this->status_text) - 1);
@@ -79,6 +80,14 @@ void MyDisplay::on_key_press(char key)
         this->current_key = new_key_state;
         this->needs_update = true; // Set the flag to trigger a redraw
     }
+}
+void MyDisplay::set_main_text(const char* text)
+{
+    // Копіюємо новий текст у наш буфер для великої зони
+    strncpy(this->main_text, text, sizeof(this->main_text) - 1);
+    this->main_text[sizeof(this->main_text) - 1] = '\0'; // Гарантуємо нуль-термінатор
+
+    this->needs_update = true; // Потрібно оновити екран
 }
 /**
  * @brief Public API to set the top-left status bar text.
@@ -117,13 +126,17 @@ void MyDisplay::update_screen(void)
 
     // --- Zone 2: Main Area (Bottom 48 pixels) ---
 
-    if (this->current_key != 0) {
-        // A key is pressed, draw it big!
-
-        // Center the large character
-        // 128 (screen width) - 11 (font width) = 117. 117 / 2 = 58
-        // 16 (status bar height) + ( (64-16) / 2 ) - (18 / 2) = 16 + 24 - 9 = 31
-        ssd1306_SetCursor(58, 31);
+    if (this->main_text[0] != '\0')
+    {
+        // Є головний текст, малюємо його
+        ssd1306_SetCursor(2, 31); // Координати для тексту
+        ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
+    }
+    // Якщо головний текст порожній, малюємо натиснуту клавішу
+    else if (this->current_key != 0)
+    {
+        // Немає головного тексту, але є натиснута клавіша
+        ssd1306_SetCursor(58, 31); // Центруємо (для однієї літери)
 
         // Create a 2-char string to print the single key
         char str[2] = {this->current_key, '\0'};

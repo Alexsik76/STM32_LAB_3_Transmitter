@@ -59,6 +59,8 @@ MyRadio::MyRadio()
 bool MyRadio::init(void)
 {
 	nrf24l01p_tx_init(106, _1Mbps);
+	nrf24l01p_set_tx_address(TX_ADDRESS);
+	nrf24l01p_set_rx_address_p0(TX_ADDRESS);
 	return true;
 }
 
@@ -108,6 +110,7 @@ void MyRadio::task(void)
             // 3. Чекаємо на семафор від IRQ (до 100мс), що передача завершена
             if (xSemaphoreTake(g_radio_irq_sem, pdMS_TO_TICKS(100)) == pdTRUE)
             {
+            	UI_Blink_Once();
                 // IRQ спрацював!
                 // 4. Обробимо IRQ (скинемо прапори TX_DS/MAX_RT і блимнемо діодом)
                 nrf24l01p_tx_irq();
