@@ -8,7 +8,7 @@
 ../Core/Src/stm32f1xx_it.c:184:6:DMA1_Channel2_IRQHandler	1
 ../Core/Src/stm32f1xx_it.c:198:6:DMA1_Channel3_IRQHandler	1
 ../Core/Src/stm32f1xx_it.c:212:6:DMA1_Channel6_IRQHandler	1
-../Core/Src/stm32f1xx_it.c:226:6:TIM1_UP_IRQHandler	1
+../Core/Src/stm32f1xx_it.c:226:6:TIM4_IRQHandler	1
 ../Core/Src/stm32f1xx_it.c:240:6:I2C1_EV_IRQHandler	1
 ../Core/Src/stm32f1xx_it.c:254:6:I2C1_ER_IRQHandler	1
 ../Core/Src/stm32f1xx_it.c:272:6:HAL_GPIO_EXTI_Callback	3

@@ -16,6 +16,7 @@ extern "C" {
  * @brief Performs a single, non-blocking UI blink (e.g., LED).
  */
 void UI_Blink_Once(void);
+void UI_Blink_Triple(void);
 
 #ifdef __cplusplus
 }

@@ -36,3 +36,18 @@ void UI_Blink_Once(void)
 	vTaskDelay(pdMS_TO_TICKS(50));
 	UI_Blink_End();
 }
+
+void UI_Blink_Triple(void)
+{
+	UI_Blink_Start();
+	vTaskDelay(pdMS_TO_TICKS(50));
+	UI_Blink_End();
+	vTaskDelay(pdMS_TO_TICKS(50));
+	UI_Blink_Start();
+	vTaskDelay(pdMS_TO_TICKS(50));
+	UI_Blink_End();
+	vTaskDelay(pdMS_TO_TICKS(50));
+	UI_Blink_Start();
+	vTaskDelay(pdMS_TO_TICKS(50));
+	UI_Blink_End();
+}

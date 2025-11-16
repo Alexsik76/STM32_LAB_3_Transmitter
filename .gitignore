@@ -1,2 +1,39 @@
+# Папки збірки
 Debug/
 Release/
+build/
+
+# Файли, що генеруються STM32CubeMX
+.mxproject
+
+# Налаштування Eclipse IDE
+.settings/
+.project
+.cproject
+.launch
+
+# Інші файли IDE
+*.launch
+*.prefs
+*.properties
+
+# Файли, що генеруються компілятором/дебагером
+*.o
+*.d
+*.elf
+*.map
+*.list
+*.hex
+*.bin
+*.su
+*.bak
+*.swo
+*.swd
+*.ld
+
+# Файли, що генеруються Windows
+Thumbs.db
+Desktop.ini
+
+# Специфічні файли macOS
+.DS_Store

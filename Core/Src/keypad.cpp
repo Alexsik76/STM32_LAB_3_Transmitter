@@ -103,7 +103,7 @@ void keypad_task(void* argument)
             } else if (now - press_time > DEBOUNCE_TIME_MS && !key_reported) {
                 // The key has been held for > 50ms and we haven't reported it yet
                 key_reported = true;
-                UI_Blink_Once();             // Blink the LED
+//                UI_Blink_Once();             // Blink the LED
 
                 // === НОВА ЛОГІКА КЕРУВАННЯ РЕЖИМАМИ ===
 
