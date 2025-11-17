@@ -1,45 +1,41 @@
-#include "radio.h"
-#include "nrf24l01p.h" // Include the low-level driver
-#include "FreeRTOS.h"
-#include "task.h"
-#include <string.h> // For memcpy
-#include "display.h"
+#include <radio.hpp>
+#include "cmsis_os.h"
+#include "main.h" // Для доступу до hspi1 та пінів
+#include "ui_feedback.h" // Для UI_Blink_Once()
 #include <stdio.h>
-#include "ui_feedback.h"
+#include <string.h>
 
-// --- Global Objects ---
-
-/**
- * @brief Global semaphore, signaled by the nRF24L01 IRQ pin.
- */
-SemaphoreHandle_t g_radio_irq_sem;
-
-/**
- * @brief Global instance of our C++ radio class.
- */
+// --- Глобальні об'єкти (визначені тут) ---
 MyRadio g_radio;
-extern MyDisplay g_display;
-// --- Pipe Addresses ---
-// (Must be the same on transmitter and receiver)
+// !!! ВИДАЛЕНО: osSemaphoreId_t g_radio_irq_sem; (Тепер створюється в freertos.c)
+
+// --- Глобальні об'єкти (визначені в інших файлах) ---
+extern SPI_HandleTypeDef hspi1; // Хендл SPI (з main.c)
+
+// --- Адреси ---
 uint8_t TX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
-uint8_t RX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
-uint8_t radio_tx_buffer[32];
-// --- C-Wrappers (Entry Point) ---
+
+// --- C-Wrappers (Вхідні точки) ---
 extern "C" {
 
+// Оголошуємо хендли, які створені у freertos.c
+extern osMessageQueueId_t radioTxQueueHandleHandle;
+extern osSemaphoreId_t radioIrqSemHandleHandle; // <<< ПРАВИЛЬНЕ ІМ'Я З MX
+
 /**
- * @brief C-callable function to initialize the radio subsystem.
+ * @brief C-функція для ініціалізації радіо.
+ * (Тепер порожня, оскільки семафор створюється в MX)
  */
 void radio_init(void)
 {
-    // Create the binary semaphore for IRQ
-    g_radio_irq_sem = xSemaphoreCreateBinary();
+    // !!! ВИДАЛЕНО: osSemaphoreNew(...)
+    // CubeMX тепер робить це у MX_FREERTOS_Init()
 }
 
 /**
- * @brief RTOS task entry function.
+ * @brief Вхідна точка задачі RTOS.
  */
-void radio_task_entry(void *argument)
+void radio_run_task(void)
 {
     g_radio.task();
 }
@@ -49,83 +45,68 @@ void radio_task_entry(void *argument)
 // --- C++ Class Implementation ---
 
 MyRadio::MyRadio()
+    // Ініціалізуємо наш C++ драйвер
+    : radio(&hspi1,
+    		NRF24_CSN_GPIO_Port, NRF24_CSN_Pin,
+			NRF24_CE_GPIO_Port,  NRF24_CE_Pin,
+            32)
 {
-	this->tx_queue = xQueueCreate(1, 0);
+    // Конструктор
 }
 
 /**
- * @brief Private method to initialize the nRF24.
+ * @brief Внутрішня ініціалізація (з вашого старого коду, але C++ методами)
  */
 bool MyRadio::init(void)
 {
-	nrf24l01p_tx_init(106, _1Mbps);
-	nrf24l01p_set_tx_address(TX_ADDRESS);
-	nrf24l01p_set_rx_address_p0(TX_ADDRESS);
-	return true;
+    radio.init_tx(106, _1Mbps);
+    radio.set_tx_address(TX_ADDRESS);
+    radio.set_rx_address_p0(TX_ADDRESS); // Для Auto-ACK
+    return true;
 }
 
-/**
- * @brief Public API for other tasks to send data.
- */
-bool MyRadio::send_data(uint8_t* data)
-{
-	memcpy(radio_tx_buffer, data, 32);
-	if (xQueueSend(this->tx_queue, NULL, 0) == pdTRUE) {
-	        return true;
-	    }
-	return false;
-}
 
 /**
- * @brief MAIN RADIO TASK LOOP
- */
-/**
- * @brief MAIN RADIO TASK LOOP
- */
-/**
- * @brief MAIN RADIO TASK LOOP (ТІЛЬКИ ПЕРЕДАВАЧ)
+ * @brief ГОЛОВНИЙ ЦИКЛ ЗАДАЧІ РАДІО
+ * (Це вже ПОВНІСТЮ пересаджена логіка)
  */
 void MyRadio::task(void)
 {
-    if (!this->init()) { // Це тепер коректно викликає nrf24l01p_tx_init
-        vTaskDelete(NULL);
+    if (!this->init()) {
+        vTaskDelete(NULL); // Помилка ініціалізації
     }
 
-    // Згідно з драйвером, nrf24l01p_tx_init вже встановив CE HIGH.
-    // Модуль знаходиться в режимі Standby-II, готовий до передачі.
+    uint8_t local_tx_buffer[32]; // Локальний буфер
 
     while(1)
     {
-        // --- 1. Чекаємо, поки keypad_task дасть нам роботу ---
-        // Блокуємо задачу, поки в черзі не з'явиться повідомлення
-        if (xQueueReceive(this->tx_queue, NULL, portMAX_DELAY) == pdTRUE)
+        // --- 1. Чекаємо на ДАНІ від LogicTask ---
+    	if (osMessageQueueGet(radioTxQueueHandleHandle, local_tx_buffer, NULL, osWaitForever) == osOK)
         {
-            // Є робота!
+            // Є робота! Дані в local_tx_buffer.
 
             // 1. Завантажуємо дані в FIFO
-            nrf24l01p_write_tx_fifo(radio_tx_buffer);
+            radio.transmit(local_tx_buffer);
 
-            // 2. Оскільки CE вже HIGH, передача почнеться автоматично.
+            // 2. Починаємо передачу імпульсом CE
+            radio.ce_high();
+            osDelay(1); // 1мс (більше ніж 10us, безпечно)
+            radio.ce_low();
 
-            // 3. Чекаємо на семафор від IRQ (до 100мс), що передача завершена
-            if (xSemaphoreTake(g_radio_irq_sem, pdMS_TO_TICKS(100)) == pdTRUE)
+            // 3. Чекаємо на IRQ (використовуємо ПРАВИЛЬНЕ ім'я семафора)
+            if (osSemaphoreAcquire(radioIrqSemHandleHandle, 100) == osOK)
             {
-            	UI_Blink_Once();
                 // IRQ спрацював!
-                // 4. Обробимо IRQ (скинемо прапори TX_DS/MAX_RT і блимнемо діодом)
-                nrf24l01p_tx_irq();
+                UI_Blink_Once();
+
+                // 4. Обробимо IRQ (скинемо прапори)
+                radio.handle_tx_irq();
             }
             else
             {
                 // IRQ не спрацював (Timeout).
-                // Це означає, що ми не отримали переривання.
-                // Скинемо TX FIFO, щоб підготуватися до наступної спроби.
-                nrf24l01p_flush_tx_fifo();
+                radio.flush_tx_fifo();
             }
-
-            // Ми НЕ переходимо в RX-режим і НЕ чіпаємо CE.
-            // Модуль залишається в режимі Standby-II (CE=HIGH, PRIM_RX=0),
-            // готовий до наступної передачі.
         }
     }
 }

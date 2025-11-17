@@ -1,49 +1,30 @@
 #pragma once
-
-// --- C-Wrapper ---
-// C-callable function for starting the task.
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @brief RTOS task entry function (called by freertos.c).
- */
-void keypad_task(void *argument);
-
-#ifdef __cplusplus
-}
-#endif
-
-// --- C++ World ---
-#ifdef __cplusplus
-
 #include "main.h"
 
-/**
- * @brief Class for managing the 4x4 matrix keypad.
- * This class encapsulates the low-level scanning logic.
- */
-class MyKeypad
-{
+class MyKeypad {
 public:
-    /**
-     * @brief Constructor.
-     */
     MyKeypad();
 
     /**
-     * @brief Initializes the keypad GPIOs to a default state.
+     * @brief Ініціалізує піни клавіатури.
      */
-    void init(void);
+    void init();
 
     /**
-     * @brief Performs a single, non-blocking scan of the keypad.
-     * @return The character of the first key found, or '\0' if none.
+     * @brief Сканує клавіатуру БЕЗ затримки (non-blocking).
+     * @return Повертає символ натиснутої клавіші (1-9, *, #) або 0.
      */
-    char scan_no_delay(void);
+    char scan_no_delay();
+
+    /**
+     * @brief Головний цикл задачі RTOS для клавіатури.
+     * Викликається з C-обгортки.
+     */
+    void task();
 
 private:
+    // <<< --- ВЕСЬ ЦЕЙ БЛОК ПЕРЕНЕСЕНО З ВАШОГО СТАРОГО .h --- >>>
+
     // Key mapping
     const char key_map[4][4] = {
         {'1', '2', '3', 'A'},
@@ -57,7 +38,7 @@ private:
         KEY_ROW_0_Pin, // PA8
         KEY_ROW_1_Pin, // PA9
         KEY_ROW_2_Pin, // PA10
-        KEY_ROW_3_Pin  // PA15 (Moved from PA11 to avoid USB conflict)
+        KEY_ROW_3_Pin  // PA15
     };
 
     // Column pins (Outputs, Write)
@@ -72,4 +53,6 @@ private:
     const uint16_t all_col_pins = col_pins[0] | col_pins[1] | col_pins[2] | col_pins[3];
 };
 
-#endif // __cplusplus
+// --- Глобальний C++ об'єкт ---
+extern MyKeypad g_keypad;
+
