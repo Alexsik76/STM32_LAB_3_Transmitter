@@ -88,14 +88,6 @@ void LogicTask::task(void)
 void LogicTask::handle_mode_normal_keys(char key)
 {
     // У цьому режимі ми передаємо всі клавіші
-	send_display_main("");
-    // 1. Команда для дисплея
-    send_display_key(key);
-
-    // 2. Команда для радіо (наприклад, пакет "K:[key]")
-    uint8_t radio_packet[32];
-    snprintf((char*)radio_packet, 32, "K:%c", key);
-    send_radio_packet(radio_packet, 32);
 
     // 3. Перевірка на зміну режиму
     if (key == '#') {
@@ -106,6 +98,16 @@ void LogicTask::handle_mode_normal_keys(char key)
         this->current_mode = MODE_SEND_PRESET_ABC;
         send_display_status("Mode: Send ABC");
         send_display_main("Press ANY key...");
+    } else {
+    	send_display_main("");
+    	    // 1. Команда для дисплея
+    	    send_display_key(key);
+
+    	    // 2. Команда для радіо (наприклад, пакет "K:[key]")
+    	    uint8_t radio_packet[32];
+    	    snprintf((char*)radio_packet, 32, "K:%c", key);
+    	    send_radio_packet(radio_packet, 32);
+
     }
 }
 
@@ -155,7 +157,7 @@ void LogicTask::handle_mode_send_preset(char key)
     // (окрім клавіші виходу)
 
     // 1. Команда для дисплея
-    send_display_main("Sending 'Abc'...");
+    send_display_main("Tx 'Abc'...");
 
     // 2. Команда для радіо
     uint8_t radio_packet[32];
@@ -165,6 +167,7 @@ void LogicTask::handle_mode_send_preset(char key)
     // 3. Автоматично повертаємось у головний режим
     this->current_mode = MODE_NORMAL_KEYS;
     send_display_status("Mode: Normal");
+    send_display_main("Ready.");
     // (send_display_main не кличемо, хай "Sending..." повисить)
 }
 
