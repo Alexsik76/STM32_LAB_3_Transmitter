@@ -1,6 +1,10 @@
 #include "ssd1306.h"
 #include <string.h> // For memset (used in ssd1306_Fill)
+#include "ui_feedback.hpp"
+#include "FreeRTOS.h" // <<< ДОДАЙТЕ ЦЕ
+#include "task.h"
 
+#define SSD1306_I2C_PORT hi2c1
 /**
  * @brief Screen buffer (framebuffer).
  * @note 128 * 64 / 8 = 1024 bytes.
@@ -15,8 +19,20 @@ static uint8_t SSD1306_Buffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
  */
 static HAL_StatusTypeDef ssd1306_WriteCommand(uint8_t cmd)
 {
-    // Uses 0x00 as the "Memory Address" to signify a command
-    return HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef status;
+
+    // === ПОЧАТОК КРИТИЧНОЇ СЕКЦІЇ ===
+    // Зупиняємо планувальник RTOS, щоб він не "перебив" I2C
+    vTaskSuspendAll();
+
+    // Виконуємо блокуючу операцію
+    status = HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, HAL_MAX_DELAY);
+
+    // === КІНЕЦЬ КРИТИЧНОЇ СЕКЦІЇ ===
+    // Відновлюємо планувальник
+    xTaskResumeAll();
+
+    return status;
 }
 
 /**
@@ -30,32 +46,32 @@ uint8_t ssd1306_Init(void)
 
     // --- Initialization Sequence for 128x64 ---
     if (ssd1306_WriteCommand(0xAE) != HAL_OK) return 0; // Display OFF
-    if (ssd1306_WriteCommand(0x20) != HAL_OK) return 0; // Set Memory Addressing Mode
-    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // 00 = Horizontal
-    if (ssd1306_WriteCommand(0xB0) != HAL_OK) return 0; // Set Page Start Address
-    if (ssd1306_WriteCommand(0xC8) != HAL_OK) return 0; // Set COM Output Scan Direction
-    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // ---set low column address
-    if (ssd1306_WriteCommand(0x10) != HAL_OK) return 0; // ---set high column address
-    if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0; // --set start line address
-    if (ssd1306_WriteCommand(0x81) != HAL_OK) return 0; // Set contrast
-    if (ssd1306_WriteCommand(0xFF) != HAL_OK) return 0; // Max contrast
-    if (ssd1306_WriteCommand(0xA1) != HAL_OK) return 0; // Set segment re-map 0 to 127
-    if (ssd1306_WriteCommand(0xA6) != HAL_OK) return 0; // Set normal display
-    if (ssd1306_WriteCommand(0xA8) != HAL_OK) return 0; // Set multiplex ratio
-    if (ssd1306_WriteCommand(0x3F) != HAL_OK) return 0; // 1/64 duty (for 128x64)
-    if (ssd1306_WriteCommand(0xD3) != HAL_OK) return 0; // Set display offset
-    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // no offset
-    if (ssd1306_WriteCommand(0xD5) != HAL_OK) return 0; // Set display clock divide ratio
-    if (ssd1306_WriteCommand(0x80) != HAL_OK) return 0; //
-    if (ssd1306_WriteCommand(0xD9) != HAL_OK) return 0; // Set pre-charge period
-    if (ssd1306_WriteCommand(0xF1) != HAL_OK) return 0;
-    if (ssd1306_WriteCommand(0xDA) != HAL_OK) return 0; // Set com pins hardware config
-    if (ssd1306_WriteCommand(0x12) != HAL_OK) return 0; // (for 128x64)
-    if (ssd1306_WriteCommand(0xDB) != HAL_OK) return 0; // Set vcomh
-    if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0;
-    if (ssd1306_WriteCommand(0x8D) != HAL_OK) return 0; // Set Charge Pump
-    if (ssd1306_WriteCommand(0x14) != HAL_OK) return 0; // Enabled
-    if (ssd1306_WriteCommand(0xAF) != HAL_OK) return 0; // Display ON
+        if (ssd1306_WriteCommand(0x20) != HAL_OK) return 0; // Set Memory Addressing Mode
+        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // 00 = Horizontal
+        if (ssd1306_WriteCommand(0xB0) != HAL_OK) return 0; // Set Page Start Address
+        if (ssd1306_WriteCommand(0xC8) != HAL_OK) return 0; // Set COM Output Scan Direction
+        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // ---set low column address
+        if (ssd1306_WriteCommand(0x10) != HAL_OK) return 0; // ---set high column address
+        if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0; // --set start line address
+        if (ssd1306_WriteCommand(0x81) != HAL_OK) return 0; // Set contrast
+        if (ssd1306_WriteCommand(0xFF) != HAL_OK) return 0; // Max contrast
+        if (ssd1306_WriteCommand(0xA1) != HAL_OK) return 0; // Set segment re-map 0 to 127
+        if (ssd1306_WriteCommand(0xA6) != HAL_OK) return 0; // Set normal display
+        if (ssd1306_WriteCommand(0xA8) != HAL_OK) return 0; // Set multiplex ratio
+        if (ssd1306_WriteCommand(0x3F) != HAL_OK) return 0; // 1/64 duty (for 128x64)
+        if (ssd1306_WriteCommand(0xD3) != HAL_OK) return 0; // Set display offset
+        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // no offset
+        if (ssd1306_WriteCommand(0xD5) != HAL_OK) return 0; // Set display clock divide ratio
+        if (ssd1306_WriteCommand(0x80) != HAL_OK) return 0; //
+        if (ssd1306_WriteCommand(0xD9) != HAL_OK) return 0; // Set pre-charge period
+        if (ssd1306_WriteCommand(0xF1) != HAL_OK) return 0;
+        if (ssd1306_WriteCommand(0xDA) != HAL_OK) return 0; // Set com pins hardware config
+        if (ssd1306_WriteCommand(0x12) != HAL_OK) return 0; // (for 128x64)
+        if (ssd1306_WriteCommand(0xDB) != HAL_OK) return 0; // Set vcomh
+        if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0;
+        if (ssd1306_WriteCommand(0x8D) != HAL_OK) return 0; // Set Charge Pump
+        if (ssd1306_WriteCommand(0x14) != HAL_OK) return 0; // Enabled
+        if (ssd1306_WriteCommand(0xAF) != HAL_OK) return 0; // Display ONDisplay ON
 
     // Clear buffer
     ssd1306_Fill(Black);
@@ -155,26 +171,42 @@ char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color)
  * @brief Private function to set the display's memory "window" to fullscreen.
  * @note This is your refactor to remove code duplication.
  */
-static void ssd1306_SetFullAddressWindow(void)
+static uint8_t ssd1306_SetFullAddressWindow(void)
 {
-	ssd1306_WriteCommand(0x21); // Set column address
-	ssd1306_WriteCommand(0);    // Start
-	ssd1306_WriteCommand(SSD1306_WIDTH - 1); // End
-	ssd1306_WriteCommand(0x22); // Set page address
-	ssd1306_WriteCommand(0);    // Start
-	ssd1306_WriteCommand(SSD1306_HEIGHT/8 - 1); // End (now 7 for 64px)
+	if (ssd1306_WriteCommand(0x21) != HAL_OK) return 0;
+		if (ssd1306_WriteCommand(0)    != HAL_OK) return 0;
+		if (ssd1306_WriteCommand(SSD1306_WIDTH - 1) != HAL_OK) return 0;
+		if (ssd1306_WriteCommand(0x22) != HAL_OK) return 0;
+		if (ssd1306_WriteCommand(0)    != HAL_OK) return 0;
+		if (ssd1306_WriteCommand(SSD1306_HEIGHT/8 - 1) != HAL_OK) return 0;
+
+		return 1; // Успіх
 }
 
 /**
  * @brief Updates the screen using a blocking I2C write.
  */
-void ssd1306_UpdateScreen(void)
+uint8_t ssd1306_UpdateScreen(void)
 {
-	ssd1306_SetFullAddressWindow();
+	uint8_t status = 1;
 
-    // Send buffer (blocking method)
-    HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x40, 1,
-                      SSD1306_Buffer, sizeof(SSD1306_Buffer), HAL_MAX_DELAY);
+	    vTaskSuspendAll();
+
+		if (ssd1306_SetFullAddressWindow() == 0)
+		{
+		    status = 0;
+		}
+	    else
+	    {
+	        if (HAL_I2C_Mem_Write(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1,
+	                                SSD1306_Buffer, sizeof(SSD1306_Buffer), HAL_MAX_DELAY) != HAL_OK)
+	        {
+	            status = 0;
+	        }
+	    }
+
+	    xTaskResumeAll();
+		return status;
 }
 
 /**
@@ -183,14 +215,20 @@ void ssd1306_UpdateScreen(void)
 HAL_StatusTypeDef ssd1306_UpdateScreenDMA(void)
 {
     // 1. Set memory window
-	ssd1306_SetFullAddressWindow();
+	vTaskSuspendAll();
+		if (ssd1306_SetFullAddressWindow() == 0)
+		{
+	        xTaskResumeAll();
+		    return HAL_ERROR;
+		}
+	    xTaskResumeAll();
 
-    // 2. Start DMA transfer and return its initiation status
-    return HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
-                                    0x40,
-                                    I2C_MEMADD_SIZE_8BIT,
-                                    SSD1306_Buffer,
-                                    sizeof(SSD1306_Buffer));
+	    // Запускаємо DMA. Вона неблокуюча, тому захист їй не потрібен.
+	    return HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
+	                                    0x40,
+	                                    I2C_MEMADD_SIZE_8BIT,
+	                                    SSD1306_Buffer,
+	                                    sizeof(SSD1306_Buffer));
 }
 
 /**

@@ -31,7 +31,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+extern IWDG_HandleTypeDef hiwdg;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -121,6 +121,16 @@ void keypad_task_entry(void *argument);
 void logic_task_entry(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* Hook prototypes */
+void vApplicationIdleHook(void);
+
+/* USER CODE BEGIN 2 */
+void vApplicationIdleHook( void )
+{
+	HAL_IWDG_Refresh(&hiwdg);
+}
+/* USER CODE END 2 */
 
 /**
   * @brief  FreeRTOS initialization

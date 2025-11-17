@@ -1,9 +1,9 @@
 #include <radio.hpp>
 #include "cmsis_os.h"
 #include "main.h" // Для доступу до hspi1 та пінів
-#include "ui_feedback.h" // Для UI_Blink_Once()
 #include <stdio.h>
 #include <string.h>
+#include <ui_feedback.hpp> // Для UI_Blink_Once()
 
 // --- Глобальні об'єкти (визначені тут) ---
 MyRadio g_radio;

@@ -51,8 +51,6 @@ void Nrf24l01p::init_tx(channel MHz, air_data_rate bps)
     this->set_address_widths(5);
     this->set_auto_retransmit_count(3);
     this->set_auto_retransmit_delay(250);
-    // CE залишається low. Ми піднімемо його лише для передачі.
-    // У вашому C-коді було ce_high(), але для TX-режиму це не стандартно
     this->ce_low();
 }
 
@@ -66,12 +64,6 @@ void Nrf24l01p::transmit(uint8_t* tx_payload)
 {
     this->write_tx_fifo(tx_payload);
 
-    // NOTE: C-код не мав логіки імпульсу CE.
-    // Для відправки пакету потрібен імпульс CE.
-    // Якщо ви не використовуєте IRQ, ви можете зробити це тут:
-    // this->ce_high();
-    // HAL_Delay(1); // >10us pulse
-    // this->ce_low();
 }
 
 void Nrf24l01p::handle_tx_irq()

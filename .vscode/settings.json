@@ -1,0 +1,9 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#410978",
+        "titleBar.activeBackground": "#5B0DA8",
+        "titleBar.activeForeground": "#FCFAFF"
+    },
+    "github.gitProtocol": "ssh",
+    "git.autorefresh": false
+}

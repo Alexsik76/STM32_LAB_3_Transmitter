@@ -17,7 +17,6 @@ void keypad_init(void)
 
 /**
  * @brief Вхідна точка задачі RTOS.
- * Це ім'я ("keypad_task_entry") ви вказали в CubeMX.
  */
 void keypad_run_task(void)
 {
@@ -38,9 +37,7 @@ MyKeypad::MyKeypad()
  */
 void MyKeypad::init()
 {
-    // Взято з вашого старого MyKeypad::init()
-    // Встановлює всі стовпці в LOW (idle state)
-    // Примітка: переконайтеся, що 'all_col_pins' визначено у 'keypad.hpp'
+
     HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_RESET);
 }
 
@@ -49,7 +46,6 @@ void MyKeypad::init()
  */
 char MyKeypad::scan_no_delay()
 {
-    // === Вся ця логіка взята з вашого старого MyKeypad::scan_no_delay() ===
 
     // 1. Встановити всі стовпці в HIGH (неактивний стан для логіки pull-up)
     HAL_GPIO_WritePin(GPIOB, all_col_pins, GPIO_PIN_SET);
@@ -84,7 +80,6 @@ char MyKeypad::scan_no_delay()
 
 /**
  * @brief ГОЛОВНИЙ ЦИКЛ ЗАДАЧІ КЛАВІАТУРИ
- * (Цей код з вашого НОВОГО файлу - він вже правильний)
  */
 void MyKeypad::task(void)
 {
@@ -95,29 +90,12 @@ void MyKeypad::task(void)
     uint32_t press_time = 0;
     bool key_reported = false;
 
-    // (Примітка: переконайтеся, що CMSIS_OS V2 увімкнено для xTaskGetTickCount)
-    // Якщо ні, osKernelGetTickCount() є CMSIS-еквівалентом
-    const uint32_t DEBOUNCE_TIME_MS = 50;
+       const uint32_t DEBOUNCE_TIME_MS = 50;
 
     while (1)
     {
         // 1. Отримуємо "сире" натискання
         char key = this->scan_no_delay();
-
-        // Використовуємо CMSIS-функції
-        uint32_t now = osKernelGetTickCount(); // * portTICK_PERIOD_MS не потрібно, osKernelGetTickCount() вже в мс
-
-        // (Виправлення: osKernelGetTickCount() повертає "тіки", не мс,
-        //  тому логіка з вашого нового файлу була трішки неправильною)
-        // Давайте використаємо `osKernelGetTickFreq()` для коректності
-        // uint32_t now_ms = (osKernelGetTickCount() * 1000) / osKernelGetTickFreq();
-
-        // АБО, якщо portTICK_PERIOD_MS визначено (що ймовірно), ваш код був правильний.
-        // Давайте залишимо ваш код, але з CMSIS-функцією vTaskDelay (osDelay)
-
-        // --- Повертаємось до вашої логіки з "нового" файлу, вона коректна ---
-        // (Виправлення мого виправлення - ваш код був правильний,
-        //  xTaskGetTickCount доступний через cmsis_os.h)
 
         uint32_t now_ticks = xTaskGetTickCount(); // Отримуємо тіки
 
