@@ -1,6 +1,0 @@
-../Core/Src/freertos.c:130:6:MX_FREERTOS_Init	8	static
-../Core/Src/freertos.c:205:6:StartDefaultTask	16	static
-../Core/Src/freertos.c:223:6:radio_task_entry	16	static
-../Core/Src/freertos.c:238:6:display_task_entry	16	static
-../Core/Src/freertos.c:253:6:keypad_task_entry	16	static
-../Core/Src/freertos.c:268:6:logic_task_entry	16	static
