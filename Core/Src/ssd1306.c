@@ -3,6 +3,7 @@
 #include "ui_feedback.hpp"
 #include "FreeRTOS.h" // <<< ДОДАЙТЕ ЦЕ
 #include "task.h"
+#include "rtos_tasks.h"
 
 #define SSD1306_I2C_PORT hi2c1
 /**
@@ -19,18 +20,19 @@ static uint8_t SSD1306_Buffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
  */
 static HAL_StatusTypeDef ssd1306_WriteCommand(uint8_t cmd)
 {
-    HAL_StatusTypeDef status;
+    HAL_StatusTypeDef status = HAL_ERROR;
 
-    // === ПОЧАТОК КРИТИЧНОЇ СЕКЦІЇ ===
-    // Зупиняємо планувальник RTOS, щоб він не "перебив" I2C
-    vTaskSuspendAll();
+    // V2 syntax: osMutexAcquire(handle, timeout_ticks)
+    // Чекаємо до 100 тіків. osOK означає успіх.
+    if (osMutexAcquire(i2cMutexHandle, 100) == osOK)
+    {
+        // Шина наша. Відправляємо.
+        status = HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, 100);
 
-    // Виконуємо блокуючу операцію
-    status = HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, HAL_MAX_DELAY);
-
-    // === КІНЕЦЬ КРИТИЧНОЇ СЕКЦІЇ ===
-    // Відновлюємо планувальник
-    xTaskResumeAll();
+        // Звільняємо шину.
+        osMutexRelease(i2cMutexHandle);
+    }
+    // Якщо м'ютекс зайнятий більше 100мс, повернемо HAL_ERROR (status за замовчуванням)
 
     return status;
 }
@@ -77,7 +79,8 @@ uint8_t ssd1306_Init(void)
     ssd1306_Fill(Black);
 
     // Update screen (blocking method) for the first time
-    ssd1306_UpdateScreen();
+    HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x40, 1,
+                      SSD1306_Buffer, sizeof(SSD1306_Buffer), 1000);
 
     return 1; // Success
 }
@@ -184,51 +187,25 @@ static uint8_t ssd1306_SetFullAddressWindow(void)
 }
 
 /**
- * @brief Updates the screen using a blocking I2C write.
- */
-uint8_t ssd1306_UpdateScreen(void)
-{
-	uint8_t status = 1;
-
-	    vTaskSuspendAll();
-
-		if (ssd1306_SetFullAddressWindow() == 0)
-		{
-		    status = 0;
-		}
-	    else
-	    {
-	        if (HAL_I2C_Mem_Write(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1,
-	                                SSD1306_Buffer, sizeof(SSD1306_Buffer), HAL_MAX_DELAY) != HAL_OK)
-	        {
-	            status = 0;
-	        }
-	    }
-
-	    xTaskResumeAll();
-		return status;
-}
-
-/**
  * @brief Updates the screen using a non-blocking DMA transfer.
  */
 HAL_StatusTypeDef ssd1306_UpdateScreenDMA(void)
 {
     // 1. Set memory window
-	vTaskSuspendAll();
-		if (ssd1306_SetFullAddressWindow() == 0)
-		{
-	        xTaskResumeAll();
-		    return HAL_ERROR;
-		}
-	    xTaskResumeAll();
+    // Ця функція тепер сама безпечно бере м'ютекс для кожної команди,
+    // бо ми оновили ssd1306_WriteCommand.
+    if (ssd1306_SetFullAddressWindow() == 0)
+    {
+        return HAL_ERROR;
+    }
 
-	    // Запускаємо DMA. Вона неблокуюча, тому захист їй не потрібен.
-	    return HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
-	                                    0x40,
-	                                    I2C_MEMADD_SIZE_8BIT,
-	                                    SSD1306_Buffer,
-	                                    sizeof(SSD1306_Buffer));
+    // 2. Запускаємо DMA.
+    // HAL сам перевірить, чи вільна шина (HAL_BUSY).
+    return HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
+                                    0x40,
+                                    I2C_MEMADD_SIZE_8BIT,
+                                    SSD1306_Buffer,
+                                    sizeof(SSD1306_Buffer));
 }
 
 /**

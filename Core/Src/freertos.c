@@ -98,6 +98,11 @@ osMessageQueueId_t keyEventQueueHandleHandle;
 const osMessageQueueAttr_t keyEventQueueHandle_attributes = {
   .name = "keyEventQueueHandle"
 };
+/* Definitions for i2cMutex */
+osMutexId_t i2cMutexHandle;
+const osMutexAttr_t i2cMutex_attributes = {
+  .name = "i2cMutex"
+};
 /* Definitions for i2cTxDoneSemHandle */
 osSemaphoreId_t i2cTxDoneSemHandleHandle;
 const osSemaphoreAttr_t i2cTxDoneSemHandle_attributes = {
@@ -145,6 +150,9 @@ void MX_FREERTOS_Init(void) {
 
 
   /* USER CODE END Init */
+  /* Create the mutex(es) */
+  /* creation of i2cMutex */
+  i2cMutexHandle = osMutexNew(&i2cMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */

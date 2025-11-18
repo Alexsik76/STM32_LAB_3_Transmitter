@@ -69,12 +69,6 @@ char ssd1306_WriteString(const char* str, FontDef_8bit_t* Font, uint8_t color);
 char ssd1306_WriteString_Large(const char* str, FontDef_t* Font, uint8_t color);
 
 /**
- * @brief Updates the screen using a blocking I2C write.
- * @note Used only for initial setup before RTOS starts.
- */
-uint8_t ssd1306_UpdateScreen(void);
-
-/**
  * @brief Updates the screen using a non-blocking DMA transfer.
  * @return HAL status of the DMA initiation.
  */

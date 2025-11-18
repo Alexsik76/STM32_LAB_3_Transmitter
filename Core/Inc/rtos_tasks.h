@@ -11,6 +11,8 @@ extern "C" {
 extern osSemaphoreId_t i2cTxDoneSemHandleHandle;
 extern osSemaphoreId_t radioIrqSemHandleHandle;
 
+extern osMutexId_t i2cMutexHandle;
+
 void display_run_task(void);
 void keypad_run_task(void);
 void logic_run_task(void);
