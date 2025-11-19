@@ -1,205 +1,126 @@
-/*
- * logic.cpp
- *
- * Created on: Nov 17, 2025
- * Author: osiko
- */
-
 #include "logic.hpp"
-
-#include <messaging.h> // <<< Наш файл з командами для дисплея
+#include "rtos_tasks.h" // Хендли черг
+#include "string.h"
+#include "stdio.h"
 #include "cmsis_os.h"
-#include <string.h>
-#include <stdio.h> // для snprintf
-
-// --- Глобальний об'єкт ---
+// Глобальний об'єкт
 LogicTask g_logic_task;
 
-// --- Глобальні хендли черг з freertos.c ---
-
-
-// --- C-Wrappers (Вхідні точки) ---
-extern "C" {
-// Оголошуємо хендли, які створені у freertos.c
 extern osMessageQueueId_t keyEventQueueHandleHandle;
-extern osMessageQueueId_t displayQueueHandleHandle;
 extern osMessageQueueId_t radioTxQueueHandleHandle;
-
-/**
- * @brief Вхідна точка задачі RTOS.
- * Це ім'я ("logic_task_entry") ви вказали в CubeMX.
- */
-void logic_run_task(void)
-{
-    g_logic_task.task(); // Передаємо керування C++ об'єкту
+extern osMessageQueueId_t displayQueueHandleHandle;
+extern "C" {
+    void logic_run_task(void) {
+    	g_logic_task.task();
+    }
 }
 
-} // extern "C"
-
-// --- C++ Class Implementation ---
-
-LogicTask::LogicTask()
-{
-    // Встановлюємо початковий режим
-    this->current_mode = MODE_NORMAL_KEYS;
+LogicTask::LogicTask() {
+    this->current_mode = MODE_KEYPAD;
 }
 
-/**
- * @brief ГОЛОВНИЙ ЦИКЛ ЗАДАЧІ ЛОГІКИ
- */
 void LogicTask::task(void)
 {
-    // Буфер для отримання символу з черги клавіатури
-    char received_key;
+    char key;
 
-    // Початкове повідомлення на дисплей
-    send_display_status("Mode: Normal");
-    send_display_main("Ready.");
+    // Початкове оновлення екрану передавача
+    update_local_display();
 
     while (1)
     {
-        // "Заснути" і чекати на натискання клавіші
-    	if (osMessageQueueGet(keyEventQueueHandleHandle, &received_key, NULL, osWaitForever) == osOK)
+        // Чекаємо натискання клавіші
+        if (osMessageQueueGet(keyEventQueueHandleHandle, &key, NULL, osWaitForever) == osOK)
         {
-            // Ми прокинулись! Отримали клавішу.
-            // Тепер передаємо її обробнику, що відповідає за поточний режим.
+            // --- 1. ЛОГІКА ПЕРЕМИКАННЯ РЕЖИМІВ (#) ---
+            if (key == '#')
+            {
+            	if (this->current_mode == MODE_AUTO) this->current_mode = MODE_KEYPAD;
+				else this->current_mode = (SystemMode_t)((int)this->current_mode + 1);
+
+				update_local_display();
+
+				// НОВЕ: Відправляємо "пустий" пакет, щоб Приймач одразу дізнався про зміну режиму
+				RadioPacket sync_packet;
+				sync_packet.mode = (uint8_t)this->current_mode;
+				memset(sync_packet.payload, 0, 31); // Даних немає
+				osMessageQueuePut(radioTxQueueHandleHandle, &sync_packet, 0, 0);
+
+				continue;
+            }
+
+            // --- 2. ФОРМУВАННЯ ПАКЕТУ ---
+            RadioPacket packet;
+            memset(&packet, 0, sizeof(packet)); // Чистимо пам'ять
+            packet.mode = (uint8_t)this->current_mode;
+
+            bool send_it = false;
 
             switch (this->current_mode)
             {
-                case MODE_NORMAL_KEYS:
-                    handle_mode_normal_keys(received_key);
+                case MODE_KEYPAD:
+                    // Шлемо будь-яку клавішу
+                    packet.payload[0] = key;
+                    send_it = true;
+
+                    // Локально показуємо, що натиснули
+                    send_to_display(DISP_CMD_SHOW_KEY, "", key);
                     break;
 
-                case MODE_SERVO_ARROWS:
-                    handle_mode_servo_arrows(received_key);
+                case MODE_SERVO:
+                    // Шлемо тільки команди керування
+                    if (key == '2' || key == '4' || key == '6' || key == '8') {
+                        packet.payload[0] = key;
+                        send_it = true;
+
+                        // Локальна візуалізація
+                        if (key == '2') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: UP");
+                        if (key == '8') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: DOWN");
+                        if (key == '4') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: LEFT");
+                        if (key == '6') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: RIGHT");
+                    }
                     break;
 
-                case MODE_SEND_PRESET_ABC:
-                    handle_mode_send_preset(received_key);
+                case MODE_AUTO:
+                    // Будь-яка клавіша відправляє послідовність
+                	strncpy(packet.payload, "Abc sequence", 30);
+					send_it = true;
+					send_to_display(DISP_CMD_SET_MAIN_TEXT, "Sent!");
                     break;
+            }
+
+            // --- 3. ВІДПРАВКА В ЕФІР ---
+            if (send_it) {
+                osMessageQueuePut(radioTxQueueHandleHandle, &packet, 0, 0);
             }
         }
     }
 }
 
-// --- Реалізація обробників режимів ---
-// (Ця логіка реалізує 3 режими, які ми обговорювали)
-
-void LogicTask::handle_mode_normal_keys(char key)
+// Оновлення статусу на екрані передавача
+void LogicTask::update_local_display()
 {
-    // У цьому режимі ми передаємо всі клавіші
-
-    // 3. Перевірка на зміну режиму
-    if (key == '#') {
-        this->current_mode = MODE_SERVO_ARROWS;
-        send_display_status("Mode: Servo");
-        send_display_main("Arrows (2,4,6,8)");
-    } else if (key == '*') {
-        this->current_mode = MODE_SEND_PRESET_ABC;
-        send_display_status("Mode: Send ABC");
-        send_display_main("Press ANY key...");
-    } else {
-    	send_display_main("");
-    	    // 1. Команда для дисплея
-    	    send_display_key(key);
-
-    	    // 2. Команда для радіо (наприклад, пакет "K:[key]")
-    	    uint8_t radio_packet[32];
-    	    snprintf((char*)radio_packet, 32, "K:%c", key);
-    	    send_radio_packet(radio_packet, 32);
-
-    }
+	switch (this->current_mode) {
+		case MODE_KEYPAD:
+			send_to_display(DISP_CMD_SET_STATUS, "Mode: Keypad");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Ready");
+			break;
+		case MODE_SERVO:
+			send_to_display(DISP_CMD_SET_STATUS, "Mode: Servo");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Keys: 2,4,6,8");
+			break;
+		case MODE_AUTO:
+			send_to_display(DISP_CMD_SET_STATUS, "Mode: Auto");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Press Key");
+			break;
+	    }
 }
 
-void LogicTask::handle_mode_servo_arrows(char key)
-{
-    uint8_t radio_packet[32] = {0};
-    bool should_send = false;
-
-    // 1. Перевіряємо, чи це "наша" клавіша
-    switch (key)
-    {
-        case '2': // Вгору
-            snprintf((char*)radio_packet, 32, "SRV:UP");
-            should_send = true;
-            break;
-        case '8': // Вниз
-            snprintf((char*)radio_packet, 32, "SRV:DOWN");
-            should_send = true;
-            break;
-        case '4': // Вліво
-            snprintf((char*)radio_packet, 32, "SRV:LEFT");
-            should_send = true;
-            break;
-        case '6': // Вправо
-            snprintf((char*)radio_packet, 32, "SRV:RIGHT");
-            should_send = true;
-            break;
-    }
-
-    // 2. Якщо так - відправляємо команду на радіо
-    if (should_send) {
-        send_display_main((char*)radio_packet); // Покажемо на дисплеї "SRV:UP"
-        send_radio_packet(radio_packet, 32);
-    }
-
-    // 3. Перевірка на вихід з режиму (наприклад, '#')
-    if (key == '#') {
-        this->current_mode = MODE_NORMAL_KEYS;
-        send_display_status("Mode: Normal");
-        send_display_main("Ready.");
-    }
-}
-
-void LogicTask::handle_mode_send_preset(char key)
-{
-    // У цьому режимі ми ігноруємо, *яку* клавішу натиснули
-    // (окрім клавіші виходу)
-
-    // 1. Команда для дисплея
-    send_display_main("Tx 'Abc'...");
-
-    // 2. Команда для радіо
-    uint8_t radio_packet[32];
-    snprintf((char*)radio_packet, 32, "Abc");
-    send_radio_packet(radio_packet, 32);
-
-    // 3. Автоматично повертаємось у головний режим
-    this->current_mode = MODE_NORMAL_KEYS;
-    send_display_status("Mode: Normal");
-    send_display_main("Ready.");
-    // (send_display_main не кличемо, хай "Sending..." повисить)
-}
-
-
-// --- Реалізація "відправників" ---
-
-void LogicTask::send_display_status(const char* text)
-{
+// Допоміжна функція (така ж, як на приймачі)
+void LogicTask::send_to_display(DisplayCommand_t cmd, const char* text, char key) {
     DisplayMessage_t msg;
-    msg.command = DISPLAY_CMD_SET_STATUS;
-    strncpy(msg.text, text, 32);
-    osMessageQueuePut(displayQueueHandleHandle, &msg, 0, 0);
-}
-
-void LogicTask::send_display_main(const char* text)
-{
-    DisplayMessage_t msg;
-    msg.command = DISPLAY_CMD_SET_MAIN;
-    strncpy(msg.text, text, 32);
-    osMessageQueuePut(displayQueueHandleHandle, &msg, 0, 0);
-}
-
-void LogicTask::send_display_key(char key)
-{
-    DisplayMessage_t msg;
-    msg.command = DISPLAY_CMD_SHOW_KEY;
+    msg.command = cmd;
+    if (text) strncpy(msg.text, text, 31);
+    else msg.text[0] = 0;
     msg.key = key;
     osMessageQueuePut(displayQueueHandleHandle, &msg, 0, 0);
-}
-
-void LogicTask::send_radio_packet(uint8_t* data, uint8_t len)
-{
-
-	osMessageQueuePut(radioTxQueueHandleHandle, data, 0, 0);
 }

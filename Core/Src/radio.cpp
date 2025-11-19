@@ -3,7 +3,8 @@
 #include "main.h" // Для доступу до hspi1 та пінів
 #include <stdio.h>
 #include <string.h>
-#include <ui_feedback.hpp> // Для UI_Blink_Once()
+#include <ui_feedback.hpp>
+#include "radio_protocol.hpp"// Для UI_Blink_Once()
 
 // --- Глобальні об'єкти (визначені тут) ---
 MyRadio g_radio;
@@ -72,40 +73,34 @@ bool MyRadio::init(void)
  */
 void MyRadio::task(void)
 {
-    if (!this->init()) {
-        vTaskDelete(NULL); // Помилка ініціалізації
-    }
+    if (!this->init()) { vTaskDelete(NULL); }
 
-    uint8_t local_tx_buffer[32]; // Локальний буфер
+    RadioPacket tx_packet; // Використовуємо нашу структуру
 
     while(1)
     {
-        // --- 1. Чекаємо на ДАНІ від LogicTask ---
-    	if (osMessageQueueGet(radioTxQueueHandleHandle, local_tx_buffer, NULL, osWaitForever) == osOK)
+        // Чекаємо на пакет від Логіки
+        if (osMessageQueueGet(radioTxQueueHandleHandle, &tx_packet, NULL, osWaitForever) == osOK)
         {
-            // Є робота! Дані в local_tx_buffer.
+            // 1. Завантажуємо структуру як масив байтів
+            radio.transmit((uint8_t*)&tx_packet);
 
-            // 1. Завантажуємо дані в FIFO
-            radio.transmit(local_tx_buffer);
-
-            // 2. Починаємо передачу імпульсом CE
+            // 2. "Дьоргаємо" ніжкою CE (імпульс > 10us)
             radio.ce_high();
-            osDelay(1); // 1мс (більше ніж 10us, безпечно)
+            osDelay(1); // 1 мс достатньо
             radio.ce_low();
 
-            // 3. Чекаємо на IRQ (використовуємо ПРАВИЛЬНЕ ім'я семафора)
+            // 3. Чекаємо на IRQ (підтвердження відправки)
             if (osSemaphoreAcquire(radioIrqSemHandleHandle, 100) == osOK)
             {
-                // IRQ спрацював!
-                UI_Blink_Once();
-
-                // 4. Обробимо IRQ (скинемо прапори)
-                radio.handle_tx_irq();
+                 UI_Blink_Once(); // Успіх
+                 radio.handle_tx_irq(); // Скидаємо прапори
             }
             else
             {
-                // IRQ не спрацював (Timeout).
-                radio.flush_tx_fifo();
+                 // Тайм-аут (не отримали ACK або щось пішло не так)
+                 radio.flush_tx_fifo();
+                 // Тут можна сповістити дисплей про помилку, але поки не будемо
             }
         }
     }

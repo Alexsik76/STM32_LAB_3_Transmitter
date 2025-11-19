@@ -1,38 +1,22 @@
 #pragma once
 #include "main.h"
-
-// Перелік наших режимів роботи (про які ви казали)
-typedef enum {
-    MODE_NORMAL_KEYS, // Режим 1: Передача клавіш
-    MODE_SERVO_ARROWS, // Режим 2: Управління серво (стрілки)
-    MODE_SEND_PRESET_ABC // Режим 3: Передача "Abc"
-} SystemMode_t;
-
+#include "radio_protocol.hpp"    // Тут живуть RadioPacket і SystemMode_t (MODE_KEYPAD...)
+#include "display_protocol.hpp" // Тут живе DisplayCommand_t
 
 class LogicTask {
 public:
     LogicTask();
 
     /**
-     * @brief Головний цикл задачі RTOS для логіки.
-     * Викликається з C-обгортки.
+     * @brief Головний цикл
      */
     void task();
 
 private:
-    // Поточний стан (режим) системи
+    // Тепер цей тип береться з radio_protocol.h
     SystemMode_t current_mode;
 
-    // --- Приватні методи-обробники ---
-    void handle_mode_normal_keys(char key);
-    void handle_mode_servo_arrows(char key);
-    void handle_mode_send_preset(char key);
-
-    // --- Приватні методи-"відправники" ---
-    void send_display_status(const char* text);
-    void send_display_main(const char* text);
-    void send_display_key(char key);
-    void send_radio_packet(uint8_t* data, uint8_t len);
+    // Методи, які ми реалізували в logic.cpp
+    void update_local_display();
+    void send_to_display(DisplayCommand_t cmd, const char* text, char key = 0);
 };
-
-// !!! ВСІ 'extern "C"' ПРОТОТИПИ ЗВІДСИ ВИДАЛЕНІ !!!

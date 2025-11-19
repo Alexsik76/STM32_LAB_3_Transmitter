@@ -1,122 +1,118 @@
-#include <display.hpp>    // Наш новий .hpp
-#include "rtos_tasks.h"   // Наш C-міст
-#include <messaging.h>    // Наші структури команд
-#include "cmsis_os.h"     // Новий API для RTOS
-#include <string.h>       // для strncpy
-#include <stdio.h>        // для snprintf
-
-// Підключаємо драйвер дисплея та шрифти
+#include "display.hpp"
+#include "display_protocol.hpp"
+#include "rtos_tasks.h"
+#include "cmsis_os.h"
+#include <string.h>
+#include <stdio.h>
 #include "ssd1306.h"
 #include "fonts.h"
 
 // --- Глобальні об'єкти ---
-
-// Хендл I2C (визначений у main.c / i2c.c)
 extern I2C_HandleTypeDef hi2c1;
-
-// Наш глобальний C++ об'єкт (тепер з аргументом)
 MyDisplay g_display(&hi2c1);
 
-// --- C-Wrappers (Вхідні точки) ---
+// =============================================================================
+// ЦЕЙ БЛОК (extern "C") - ЄДИНЕ МІСЦЕ, ЯКЕ ВІДРІЗНЯЄТЬСЯ НА TX І RX
+// =============================================================================
 extern "C" {
 
-// Хендли, згенеровані CubeMX (з freertos.c)
-extern osMessageQueueId_t displayQueueHandleHandle;
-extern osSemaphoreId_t i2cTxDoneSemHandleHandle; // Ви казали, що MX згенерував це
 
-/**
- * @brief Ініціалізація (зараз порожня, оскільки семафор створює MX)
- */
-void display_init(void)
-{
-    // Cемафор 'i2cTxDoneSemHandleHandle' створюється у freertos.c
-    // Тому ця функція залишається порожньою.
+extern osMessageQueueId_t displayQueueHandleHandle;
+extern osSemaphoreId_t i2cTxDoneSemHandle; 
+
+
+
+void display_run_task(void) {
+   
+    g_display.setup(displayQueueHandleHandle, i2cTxDoneSemHandleHandle);
+    
+    
+    g_display.task();
 }
 
-/**
- * @brief Вхідна точка задачі RTOS.
- */
-void display_run_task(void)
-{
-    g_display.task(); // Передаємо керування C++ об'єкту
+void display_init(void) {
+   
 }
 
 } // extern "C"
+// =============================================================================
 
-// --- C++ Class Implementation ---
 
-/**
- * @brief Конструктор (з вашого старого коду)
- */
+// --- C++ Implementation 
+
 MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
-    // Ініціалізація приватних членів
-    this->hi2c = hi2c; // Зберігаємо вказівник
+    this->hi2c = hi2c;
     this->current_key = 0;
-    this->main_text[0] = '\0';
-    this->status_text[0] = '\0';
-    strncpy(this->status_text, "Booting...", sizeof(this->status_text) - 1);
+    this->queueHandle = NULL; // Захист від дурня
+    this->i2cSemHandle = NULL;
+    memset(this->main_text, 0, sizeof(this->main_text));
+    memset(this->status_text, 0, sizeof(this->status_text));
+    strncpy(this->status_text, "Boot...", sizeof(this->status_text) - 1);
 }
 
-/**
- * @brief Ініціалізація (з вашого старого коду)
- */
+// Реалізація методу setup
+void MyDisplay::setup(osMessageQueueId_t queue, osSemaphoreId_t i2c_sem)
+{
+    this->queueHandle = queue;
+    this->i2cSemHandle = i2c_sem;
+}
+
 bool MyDisplay::init()
 {
-    // Чекаємо на стабілізацію (використовуємо CMSIS API)
     osDelay(100);
-    return ssd1306_Init();
+    return ssd1306_Init() == 0;
 }
 
-/**
- * @brief ГОЛОВНИЙ ЦИКЛ ЗАДАЧІ ДИСПЛЕЯ (з вашого НОВОГО коду)
- */
 void MyDisplay::task(void)
 {
-    if (!this->init()) {
-        vTaskDelete(NULL); // Не вдалося запустити дисплей
+    // Перевірка, чи викликали setup
+    if (this->queueHandle == NULL) {
+        vTaskDelete(NULL);
     }
 
-    // Локальний буфер для отримання повідомлень з черги
-    DisplayMessage_t msg;
+    if (!this->init()) {
+    }
 
-    // Перше оновлення екрану при запуску
+    DisplayMessage_t msg; 
+    this->set_status_text("Booting...");
     this->update_screen_internal();
-
+    osDelay(500);
+    this->set_status_text("Ready");
+    this->set_main_text(""); // Очищуємо центр
+    this->update_screen_internal();
     while (1)
     {
-        // "Заснути" і чекати на повідомлення (команду) з черги
-    	if (osMessageQueueGet(displayQueueHandleHandle, &msg, NULL, osWaitForever) == osOK)
+        // Використовуємо переданий хендл this->queueHandle замість глобального
+        if (osMessageQueueGet(this->queueHandle, &msg, NULL, osWaitForever) == osOK)
         {
-            // Нас "розбудили"! Ми отримали команду.
             bool needs_redraw = false;
 
             switch (msg.command)
-            {
-                case DISPLAY_CMD_SET_STATUS:
-                    this->set_status_text(msg.text);
-                    needs_redraw = true;
-                    break;
+				{
+				case DISP_CMD_SET_STATUS:
+					this->set_status_text(msg.text);
+					needs_redraw = true;
+					break;
 
-                case DISPLAY_CMD_SET_MAIN:
-                    this->set_main_text(msg.text);
-                    needs_redraw = true;
-                    break;
+				case DISP_CMD_SET_MAIN_TEXT:
+					this->set_main_text(msg.text);
+					this->current_key = 0;
+					needs_redraw = true;
+					break;
 
-                case DISPLAY_CMD_SHOW_KEY:
-                    this->on_key_press(msg.key);
-                    needs_redraw = true;
-                    break;
+				case DISP_CMD_SHOW_KEY:
+					 this->on_key_press(msg.key);
+					 this->set_main_text("");
+					 needs_redraw = true;
+					 break;
 
-                case DISPLAY_CMD_CLEAR_ALL:
-                    this->clear_all();
-                    needs_redraw = true;
-                    break;
-            }
-
-            // Оновлюємо екран, ТІЛЬКИ якщо команда щось змінила
-            if (needs_redraw)
-            {
+				case DISP_CMD_CLEAR:
+					 this->clear_all();
+					 needs_redraw = true;
+					 break;
+				}
+            if (needs_redraw) {
                 this->update_screen_internal();
             }
         }
@@ -124,83 +120,64 @@ void MyDisplay::task(void)
 }
 
 
-// --- Реалізація методів малювання (з вашого СТАРОГО коду) ---
-
-/**
- * @brief Оновлює внутрішній буфер status_text
- */
-void MyDisplay::set_status_text(const char* text)
+void MyDisplay::update_screen_internal()
 {
+    ssd1306_Fill(Black);
+
+    // 1. Статус бар (дрібний шрифт 6x8)
+    // Тут використовуємо звичайний WriteString
+    if (this->status_text[0] != '\0') {
+        ssd1306_SetCursor(0, 0);
+        ssd1306_WriteString(this->status_text, (FontDef_8bit_t*)&Font_6x8, White);
+    }
+
+    // 2. Головний текст (ВЕЛИКИЙ шрифт 11x18)
+    // Тут використовуємо WriteString_Large
+    if (this->main_text[0] != '\0') 
+    {
+        // Центруємо для шрифту шириною 11 пікселів
+        int len = strlen(this->main_text);
+        int px_width = len * 11; 
+        
+        int x_pos = (128 - px_width) / 2;
+        if (x_pos < 0) x_pos = 0;
+
+        ssd1306_SetCursor(x_pos, 20);
+        
+        // ВИКЛИКАЄМО ПРАВИЛЬНУ ФУНКЦІЮ БЕЗ КАСТИНГУ!
+        ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
+    }
+    else if (this->current_key != 0) 
+    {
+        // Одна літера по центру
+        ssd1306_SetCursor(54, 20); 
+        char str[2] = {this->current_key, '\0'};
+        
+        ssd1306_WriteString_Large(str, &Font_11x18, White); 
+    }
+
+    // 3. DMA Update
+    ssd1306_UpdateScreenDMA();
+    
+    if (this->i2cSemHandle != NULL) {
+        osSemaphoreAcquire(this->i2cSemHandle, 100);
+    } else {
+        osDelay(10);
+    }
+}
+
+void MyDisplay::set_status_text(const char* text) {
     strncpy(this->status_text, text, sizeof(this->status_text) - 1);
-    this->status_text[sizeof(this->status_text) - 1] = '\0'; // Гарантуємо нуль-термінатор
 }
-
-/**
- * @brief Оновлює внутрішній буфер main_text
- */
-void MyDisplay::set_main_text(const char* text)
-{
+void MyDisplay::set_main_text(const char* text) {
     strncpy(this->main_text, text, sizeof(this->main_text) - 1);
-    this->main_text[sizeof(this->main_text) - 1] = '\0';
 }
-
-/**
- * @brief Оновлює внутрішню змінну current_key
- */
-void MyDisplay::on_key_press(char key)
-{
-    // '*' (або 0) діє як "очистити клавішу"
-    this->current_key = (key == '*' || key == 0) ? 0 : key;
+void MyDisplay::on_key_press(char key) {
+    this->current_key = key;
 }
-
-/**
- * @brief Очищує внутрішні буфери
- */
 void MyDisplay::clear_all()
 {
     this->status_text[0] = '\0';
     this->main_text[0] = '\0';
     this->current_key = 0;
-}
-
-/**
- * @brief Фактичне малювання (з вашого старого MyDisplay::update_screen)
- */
-void MyDisplay::update_screen_internal()
-{
-    // 1. Очистити буфер драйвера
-    ssd1306_Fill(Black);
-
-    // --- Зона 1: Status Bar (Верх) ---
-    if (this->status_text[0] != '\0')
-    {
-        ssd1306_SetCursor(0, 0);
-        // Примітка: ваш старий код використовував Font_6x8, переконайтеся, що він є
-        ssd1306_WriteString(this->status_text, &Font_6x8, White);
-    }
-
-    // --- Зона 2: Головна Область (Центр) ---
-    if (this->main_text[0] != '\0')
-    {
-        // Є головний текст, малюємо його
-        ssd1306_SetCursor(2, 31);
-        ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
-    }
-    // Якщо головний текст порожній, малюємо натиснуту клавішу
-    else if (this->current_key != 0)
-    {
-        // Немає головного тексту, але є клавіша
-        ssd1306_SetCursor(58, 31); // Центруємо
-
-        char str[2] = {this->current_key, '\0'};
-        ssd1306_WriteString_Large(str, &Font_11x18, White);
-    }
-
-    // 4. Запустити неблокуючу передачу DMA
-    ssd1306_UpdateScreenDMA();
-
-    // 5. Чекати, поки DMA/I2C завершить (використовуємо CMSIS та нове ім'я семафора)
-    // 100мс таймаут
-    osSemaphoreAcquire(i2cTxDoneSemHandleHandle, 100);
-//    osDelay(10);
 }
