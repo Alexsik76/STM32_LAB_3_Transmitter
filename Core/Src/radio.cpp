@@ -23,15 +23,6 @@ extern "C" {
 extern osMessageQueueId_t radioTxQueueHandleHandle;
 extern osSemaphoreId_t radioIrqSemHandleHandle; // <<< ПРАВИЛЬНЕ ІМ'Я З MX
 
-/**
- * @brief C-функція для ініціалізації радіо.
- * (Тепер порожня, оскільки семафор створюється в MX)
- */
-void radio_init(void)
-{
-    // !!! ВИДАЛЕНО: osSemaphoreNew(...)
-    // CubeMX тепер робить це у MX_FREERTOS_Init()
-}
 
 /**
  * @brief Вхідна точка задачі RTOS.

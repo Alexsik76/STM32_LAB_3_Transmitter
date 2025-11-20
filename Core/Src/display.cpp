@@ -26,12 +26,7 @@ void display_run_task(void) {
    
     g_display.setup(displayQueueHandleHandle, i2cTxDoneSemHandleHandle);
     
-    
     g_display.task();
-}
-
-void display_init(void) {
-   
 }
 
 } // extern "C"

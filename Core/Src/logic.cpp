@@ -106,7 +106,7 @@ void LogicTask::update_local_display()
 			break;
 		case MODE_SERVO:
 			send_to_display(DISP_CMD_SET_STATUS, "Mode: Servo");
-			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Keys: 2,4,6,8");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "2,4,6,8");
 			break;
 		case MODE_AUTO:
 			send_to_display(DISP_CMD_SET_STATUS, "Mode: Auto");
