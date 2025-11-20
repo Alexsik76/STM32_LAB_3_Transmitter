@@ -48,12 +48,12 @@ extern IWDG_HandleTypeDef hiwdg;
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+/* Definitions for logic_task */
+osThreadId_t logic_taskHandle;
+const osThreadAttr_t logic_task_attributes = {
+  .name = "logic_task",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for radio_task */
 osThreadId_t radio_taskHandle;
@@ -75,13 +75,6 @@ const osThreadAttr_t keypad_task_attributes = {
   .name = "keypad_task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
-};
-/* Definitions for logic_task */
-osThreadId_t logic_taskHandle;
-const osThreadAttr_t logic_task_attributes = {
-  .name = "logic_task",
-  .stack_size = 192 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for radioTxQueueHandle */
 osMessageQueueId_t radioTxQueueHandleHandle;
@@ -114,11 +107,10 @@ const osSemaphoreAttr_t radioIrqSemHandle_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void *argument);
+void logic_task_entry(void *argument);
 void radio_task_entry(void *argument);
 void display_task_entry(void *argument);
 void keypad_task_entry(void *argument);
-void logic_task_entry(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -175,8 +167,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of logic_task */
+  logic_taskHandle = osThreadNew(logic_task_entry, NULL, &logic_task_attributes);
 
   /* creation of radio_task */
   radio_taskHandle = osThreadNew(radio_task_entry, NULL, &radio_task_attributes);
@@ -186,9 +178,6 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of keypad_task */
   keypad_taskHandle = osThreadNew(keypad_task_entry, NULL, &keypad_task_attributes);
-
-  /* creation of logic_task */
-  logic_taskHandle = osThreadNew(logic_task_entry, NULL, &logic_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -200,22 +189,19 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_logic_task_entry */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+* @brief Function implementing the logic_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_logic_task_entry */
+void logic_task_entry(void *argument)
 {
-  /* USER CODE BEGIN StartDefaultTask */
+  /* USER CODE BEGIN logic_task_entry */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartDefaultTask */
+	logic_run_task();
+  /* USER CODE END logic_task_entry */
 }
 
 /* USER CODE BEGIN Header_radio_task_entry */
@@ -261,21 +247,6 @@ void keypad_task_entry(void *argument)
   /* Infinite loop */
 	keypad_run_task();
   /* USER CODE END keypad_task_entry */
-}
-
-/* USER CODE BEGIN Header_logic_task_entry */
-/**
-* @brief Function implementing the logic_task thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_logic_task_entry */
-void logic_task_entry(void *argument)
-{
-  /* USER CODE BEGIN logic_task_entry */
-  /* Infinite loop */
-	logic_run_task();
-  /* USER CODE END logic_task_entry */
 }
 
 /* Private application code --------------------------------------------------*/

@@ -9,6 +9,8 @@ LogicTask g_logic_task;
 extern osMessageQueueId_t keyEventQueueHandleHandle;
 extern osMessageQueueId_t radioTxQueueHandleHandle;
 extern osMessageQueueId_t displayQueueHandleHandle;
+extern ADC_HandleTypeDef hadc1;
+uint32_t adc_buffer[2];
 extern "C" {
     void logic_run_task(void) {
     	g_logic_task.task();
@@ -21,6 +23,7 @@ LogicTask::LogicTask() {
 
 void LogicTask::task(void)
 {
+	HAL_ADC_Start_DMA(&hadc1, adc_buffer, 2);
     char key;
 
     // Початкове оновлення екрану передавача
@@ -29,7 +32,7 @@ void LogicTask::task(void)
     while (1)
     {
         // Чекаємо натискання клавіші
-        if (osMessageQueueGet(keyEventQueueHandleHandle, &key, NULL, osWaitForever) == osOK)
+        if (osMessageQueueGet(keyEventQueueHandleHandle, &key, NULL, 100) == osOK)
         {
             // --- 1. ЛОГІКА ПЕРЕМИКАННЯ РЕЖИМІВ (#) ---
             if (key == '#')
@@ -93,6 +96,31 @@ void LogicTask::task(void)
                 osMessageQueuePut(radioTxQueueHandleHandle, &packet, 0, 0);
             }
         }
+        if (this->current_mode == MODE_SERVO)
+                {
+        			uint32_t x = adc_buffer[0];
+        	        uint32_t y = adc_buffer[1];
+
+                    // --- 0. Оголошуємо лямбда-функцію для обробки ---
+                    auto process_axis = [](uint32_t raw_val) -> uint8_t {
+                        // Мертва зона по центру (від 1900 до 2200 вважаємо центром 127)
+                        if (raw_val > 1900 && raw_val < 2200) {
+                            return 127;
+                        }
+                        // Масштабування: 4095 / 16 = 255
+                        uint32_t scaled = raw_val / 16;
+                        if (scaled > 255) scaled = 255;
+                        return (uint8_t)scaled;
+                    };
+                    // --- КРОК 3: Обробка та вивід ---
+                    uint8_t x_byte = process_axis(x);
+                    uint8_t y_byte = process_axis(y);
+
+                    char buf[32];
+                    // x127 y127 - ідеальний центр
+                    snprintf(buf, sizeof(buf), "x:%3d y:%3d", x_byte, y_byte);
+                    send_to_display(DISP_CMD_SET_MAIN_TEXT, buf);
+                }
     }
 }
 
