@@ -92,8 +92,8 @@ void LogicTask::task(void)
         if (this->current_mode == MODE_SERVO)
                 {
                     // "Пам'ять" про минулий стан (ініціалізується лише раз)
-                    static uint8_t last_x = 0;
-                    static uint8_t last_y = 0;
+                    static uint8_t last_x = 127;
+                    static uint8_t last_y = 127;
 
                     // 1. Беремо свіжі дані
                     uint32_t raw_x = adc_buffer[0];
@@ -145,15 +145,15 @@ void LogicTask::update_local_display()
 	switch (this->current_mode) {
 		case MODE_KEYPAD:
 			send_to_display(DISP_CMD_SET_STATUS, "Mode: Keypad");
-			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Ready");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Send Key");
 			break;
 		case MODE_SERVO:
 			send_to_display(DISP_CMD_SET_STATUS, "Mode: Servo");
-			send_to_display(DISP_CMD_SET_MAIN_TEXT, "2,4,6,8");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Joystick");
 			break;
 		case MODE_AUTO:
 			send_to_display(DISP_CMD_SET_STATUS, "Mode: Auto");
-			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Press Key");
+			send_to_display(DISP_CMD_SET_MAIN_TEXT, "Send Text");
 			break;
 	    }
 }
