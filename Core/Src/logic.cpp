@@ -45,7 +45,13 @@ void LogicTask::task(void)
 				// НОВЕ: Відправляємо "пустий" пакет, щоб Приймач одразу дізнався про зміну режиму
 				RadioPacket sync_packet;
 				sync_packet.mode = (uint8_t)this->current_mode;
-				memset(sync_packet.payload, 0, 31); // Даних немає
+				if (this->current_mode == MODE_SERVO) {
+						// Для серво заповнюємо ЦЕНТРОМ (127), щоб не сіпались
+						memset(sync_packet.payload, 127, 31);
+					} else {
+						// Для інших режимів - нулями
+						memset(sync_packet.payload, 0, 31);
+					}
 				osMessageQueuePut(radioTxQueueHandleHandle, &sync_packet, 0, 0);
 
 				continue;
@@ -68,27 +74,14 @@ void LogicTask::task(void)
                     // Локально показуємо, що натиснули
                     send_to_display(DISP_CMD_SHOW_KEY, "", key);
                     break;
-
-                case MODE_SERVO:
-                    // Шлемо тільки команди керування
-                    if (key == '2' || key == '4' || key == '6' || key == '8') {
-                        packet.payload[0] = key;
-                        send_it = true;
-
-                        // Локальна візуалізація
-                        if (key == '2') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: UP");
-                        if (key == '8') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: DOWN");
-                        if (key == '4') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: LEFT");
-                        if (key == '6') send_to_display(DISP_CMD_SET_MAIN_TEXT, "CMD: RIGHT");
-                    }
-                    break;
-
                 case MODE_AUTO:
                     // Будь-яка клавіша відправляє послідовність
                 	strncpy(packet.payload, "Abc sequence", 30);
 					send_it = true;
 					send_to_display(DISP_CMD_SET_MAIN_TEXT, "Sent!");
                     break;
+                case MODE_SERVO:
+				break;
             }
 
             // --- 3. ВІДПРАВКА В ЕФІР ---
@@ -98,28 +91,50 @@ void LogicTask::task(void)
         }
         if (this->current_mode == MODE_SERVO)
                 {
-        			uint32_t x = adc_buffer[0];
-        	        uint32_t y = adc_buffer[1];
+                    // "Пам'ять" про минулий стан (ініціалізується лише раз)
+                    static uint8_t last_x = 0;
+                    static uint8_t last_y = 0;
 
-                    // --- 0. Оголошуємо лямбда-функцію для обробки ---
+                    // 1. Беремо свіжі дані
+                    uint32_t raw_x = adc_buffer[0];
+                    uint32_t raw_y = adc_buffer[1];
+
+                    // 2. Обробка (з твоєю розширеною мертвою зоною)
                     auto process_axis = [](uint32_t raw_val) -> uint8_t {
-                        // Мертва зона по центру (від 1900 до 2200 вважаємо центром 127)
-                        if (raw_val > 1900 && raw_val < 2200) {
-                            return 127;
-                        }
-                        // Масштабування: 4095 / 16 = 255
+                        if (raw_val > 1700 && raw_val < 2400) return 127;
                         uint32_t scaled = raw_val / 16;
                         if (scaled > 255) scaled = 255;
                         return (uint8_t)scaled;
                     };
-                    // --- КРОК 3: Обробка та вивід ---
-                    uint8_t x_byte = process_axis(x);
-                    uint8_t y_byte = process_axis(y);
 
-                    char buf[32];
-                    // x127 y127 - ідеальний центр
-                    snprintf(buf, sizeof(buf), "x:%3d y:%3d", x_byte, y_byte);
-                    send_to_display(DISP_CMD_SET_MAIN_TEXT, buf);
+                    uint8_t x_byte = process_axis(raw_x);
+                    uint8_t y_byte = process_axis(raw_y);
+
+                    // 3. ПЕРЕВІРКА: Чи змінилися дані?
+                    if (x_byte != last_x || y_byte != last_y)
+                    {
+                        // Тільки якщо змінилися - формуємо і шлемо пакет
+                        RadioPacket joy_packet;
+                        joy_packet.mode = MODE_SERVO;
+                        joy_packet.payload[0] = x_byte;
+                        joy_packet.payload[1] = y_byte;
+
+                        osMessageQueuePut(radioTxQueueHandleHandle, &joy_packet, 0, 0);
+
+                        // Оновлюємо екран передавача
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), "TX: %d %d", x_byte, y_byte);
+                        send_to_display(DISP_CMD_SET_MAIN_TEXT, buf);
+
+                        // Запам'ятовуємо нові значення як "старі"
+                        last_x = x_byte;
+                        last_y = y_byte;
+                    }
+
+                    // 4. Затримка
+                    // Навіть якщо ми нічого не слали, треба почекати,
+                    // щоб не опитувати АЦП мільйон разів на секунду.
+                    osDelay(50);
                 }
     }
 }
